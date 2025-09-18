@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { FlatList, StyleSheet, Text, TextInput, View } from "react-native";
 
 export default function Cards() {
+  
   const [inputSearch,setInputSearch]=useState('');
+  const [columnsNumber,setColumnsNumber]=useState(2)
   const SearchCards=()=>{
     const textData=inputSearch.toUpperCase();
-
   }
   return (
     <>
@@ -24,12 +25,12 @@ export default function Cards() {
           ), 
         }} 
       />
-      <FlatList columnWrapperStyle={{justifyContent:"space-between"}} data={[1,249846516879846516359877496546987984653241687984654,"500000000000000000000000000000000000000099",1]} numColumns={2} renderItem={({item})=><Text style={styles.block}>{item}</Text>}/>
+      <FlatList columnWrapperStyle={{justifyContent:"space-between"}} data={data} numColumns={columnsNumber} renderItem={({item})=><Text style={styles.block}>{item}</Text>}/>
     </>
   );
 }
 
-
+const data=[1,249846516879846516359877496546987984653241687984654,"500000000000000000000000000000000000000099",1]
 
 const styles=StyleSheet.create({
   block:{
