@@ -18,6 +18,25 @@ const Settings=()=>{
       setInputServer("")
     }
   };
+  const connectServer=(server:string)=>{
+    fetch("http://"+server+"/status",{
+      method:"GET",
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }).then(response=>response.json()).then(json=>{
+      if (json.status="OK"){
+        AsyncStorage.setItem("server",server);
+        alert("Сервер добавлен");
+      }else{
+        alert("Ошибка опроса сервера");
+      }
+    }).catch((error)=>{
+      console.log(error);
+      alert("Ошибка опроса сервера");
+      getServer()
+    });
+  };
   useEffect(() => {
       getServer()
   }, []);
@@ -32,25 +51,6 @@ const Settings=()=>{
     </>
   );
 }
-
-const connectServer=(server:string)=>{
-    fetch("http://"+server+"/status",{
-      method:"GET",
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    }).then(response=>response.json()).then(json=>{
-      if (json.status="OK"){
-        AsyncStorage.setItem("server",server);
-        alert("Сервер добавлен");
-      }else{
-        alert("Ошибка опроса сервера");
-      }
-    }).catch((error)=>{
-    console.log(error);
-    alert("Ошибка опроса сервера");
-  });
-};
 
 const styles=StyleSheet.create({
   block:{

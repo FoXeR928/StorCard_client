@@ -1,4 +1,5 @@
 import { FontAwesome } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet, Text, TextInput, View } from "react-native";
@@ -6,9 +7,24 @@ import { FlatList, StyleSheet, Text, TextInput, View } from "react-native";
 export default function Cards() {
   
   const [inputSearch,setInputSearch]=useState('');
-  const [columnsNumber,setColumnsNumber]=useState(2)
+  const [columnsNumber,setColumnsNumber]=useState(2);
+  const [cards,setCards]=useState([])
   const SearchCards=()=>{
     const textData=inputSearch.toUpperCase();
+  }
+  const cardsGet=async ()=>{
+    const serverStorage=await AsyncStorage.getItem("server");
+    const tokenStorage=await AsyncStorage.getItem("server");
+    fetch("http://"+serverStorage+"/cards/get",{
+      method:"GET",
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer '+tokenStorage,
+      },
+    }).then(response=>response.json()).then(json=>setCards(json)).catch((error)=>{
+      console.log(error);
+      alert("Ошибка опроса сервера");
+    })
   }
   return (
     <>
