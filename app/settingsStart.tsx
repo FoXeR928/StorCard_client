@@ -1,16 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Button, StyleSheet, Text, TextInput, View } from "react-native";
 
 const Settings=()=>{
   const [inputServer,setInputServer]=useState("");
-  const checkAuth=async ()=>{
-    const tokenStorage=await AsyncStorage.getItem("token");
-    if (tokenStorage==null){
-      router.navigate("/")
-    }
-  };
   const getServer=async ()=>{
     try{
       const serverStorage=await AsyncStorage.getItem("server");
@@ -44,15 +38,17 @@ const Settings=()=>{
     });
   };
   useEffect(() => {
-      checkAuth()
       getServer()
   }, []);
   return (
-    <View style={styles.block}>
-      <Text style={styles.h1}>Сервер</Text>
-      <TextInput style={styles.input} onChangeText={server=>setInputServer(server)} value={inputServer} placeholder='Хост:Порт'/>
-      <Button title='Подключить' onPress={()=>connectServer(inputServer)}/>
-    </View>
+    <>
+      <Stack.Screen options={{ title: "Настройка" }} />
+      <View style={styles.block}>
+        <Text style={styles.h1}>Сервер</Text>
+        <TextInput style={styles.input} onChangeText={server=>setInputServer(server)} value={inputServer} placeholder='Хост:Порт'/>
+        <Button title='Подключить' onPress={()=>connectServer(inputServer)}/>
+      </View>
+    </>
   );
 }
 
