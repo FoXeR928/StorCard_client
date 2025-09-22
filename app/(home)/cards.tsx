@@ -1,11 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text } from "react-native";
+import { FlatList, StyleSheet } from "react-native";
 
-export default function Cards() {
+const Cards=()=> {
   const [columnsNumber,setColumnsNumber]=useState(2);
-  const [cards,setCards]=useState([]);
+  const [cards,setCards]=useState([{ id: null,name: "Карты не найдены",own_login: null}]);
   const getCards=async ()=>{
     const serverStorage=await AsyncStorage.getItem("server");
     const tokenStorage=await AsyncStorage.getItem("token");
@@ -32,7 +32,9 @@ export default function Cards() {
     getCards()
   }, []);
   return (
-    <FlatList columnWrapperStyle={{justifyContent:"space-between"}} data={cards} numColumns={columnsNumber} renderItem={({item})=><Text style={styles.block}>{item.name}</Text>}/>
+    <FlatList columnWrapperStyle={{justifyContent:"space-between"}} data={cards} numColumns={columnsNumber} renderItem={({item})=>
+      <Link href={{pathname:'/[card]',params:{card:Number(item.id)}}} style={styles.block}>{item.name}</Link>}
+    />
   );
 }
 
@@ -50,3 +52,5 @@ const styles=StyleSheet.create({
     overflow:"hidden"
   }
 })
+
+export default Cards

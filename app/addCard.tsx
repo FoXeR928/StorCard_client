@@ -52,9 +52,9 @@ const AddCards=()=>{
                 onValueChange={(itemValue, itemIndex)=>setInputCodeType(itemValue)}
             >
                 <Picker.Item label="Code 39" value="code39"/>
-                <Picker.Item label="Code 93" value="code93"/>
                 <Picker.Item label="Code 128" value="code128"/>
                 <Picker.Item label="Codabar" value="codabar"/>
+                <Picker.Item label="EAN13" value="ean13"/>
                 <Picker.Item label="QR Code" value="codeqr"/>
             </Picker>
             <Text>Код карты</Text>
