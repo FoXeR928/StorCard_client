@@ -1,1 +1,0 @@
-StorCard client это приложение для связи с сервером StorCard
