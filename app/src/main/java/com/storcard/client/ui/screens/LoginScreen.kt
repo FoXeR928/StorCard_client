@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.storcard.client.network.NetworkClient
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -102,11 +103,13 @@ fun loginScreen() {
                             modifier = Modifier.align(Alignment.End),
                             onClick = {
                                 scope.launch {
-                                    val notif=scope.launch {
-                                        snackbarHostState.showSnackbar("Сервер: "+server)
+                                    val result= NetworkClient.checkConnect(server)
+                                    result.onSuccess { message ->
+                                        snackbarHostState.showSnackbar(message)
                                     }
-                                    delay(2000)
-                                    notif.cancel()
+                                    result.onFailure { error ->
+                                        snackbarHostState.showSnackbar("Ошибка: "+error.localizedMessage)
+                                    }
                                 }
                             }
                         ) {

@@ -1,2 +1,60 @@
 package com.storcard.client.network
 
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
+import io.ktor.serialization.kotlinx.json.json
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import java.security.cert.X509Certificate
+import javax.net.ssl.SSLContext
+import javax.net.ssl.X509TrustManager
+
+@Serializable
+data class StatusServer(
+    val status: String,
+    val app: String,
+    val version: String,
+)
+
+object NetworkClient {
+    private val trustManager = object : X509TrustManager {
+        override fun checkClientTrusted(chain: Array<out X509Certificate?>?, authType: String?){}
+        override fun checkServerTrusted(chain: Array<out X509Certificate?>?, authType: String?) {}
+        override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+    }
+    private val sslContext = SSLContext.getInstance("TLS").apply {
+        init(null, arrayOf(trustManager), java.security.SecureRandom())
+    }
+    val client= HttpClient(OkHttp){
+        install(ContentNegotiation){
+            json(Json{
+                ignoreUnknownKeys=true
+                isLenient=true
+            })
+        }
+        engine {
+            config {
+                sslSocketFactory(sslContext.socketFactory,trustManager)
+                hostnameVerifier { _,_->true }
+            }
+        }
+    }
+    suspend fun checkConnect(url: String): Result<String>{
+        return try {
+            val response=client.get("https://$url/status")
+            val statusData: StatusServer=response.body()
+            if (statusData.app=="storcard"){
+
+                Result.success("Сервер подключен")
+            }else{
+                Result.success("Сервер не обнаружен")
+            }
+        }catch (err: Exception){
+            Result.failure(err)
+        }
+    }
+}
