@@ -22,6 +22,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,18 +32,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.storcard.client.data.LoginViewModel
 import com.storcard.client.network.NetworkClient
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun loginScreen() {
+fun loginScreen(viewModel: LoginViewModel= hiltViewModel()) {
+    val savedServerUrl by viewModel.saveUrl.collectAsState(initial = "")
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var showSetting by remember { mutableStateOf(false) }
     var server by remember { mutableStateOf("") }
     val snackbarHostState=remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(savedServerUrl) {
+        server=savedServerUrl
+    }
+
     Box(
         modifier= Modifier.fillMaxSize()
     ){
@@ -102,13 +111,9 @@ fun loginScreen() {
                         Button(
                             modifier = Modifier.align(Alignment.End),
                             onClick = {
-                                scope.launch {
-                                    val result= NetworkClient.checkConnect(server)
-                                    result.onSuccess { message ->
+                                viewModel.connectToServer(server) { message ->
+                                    scope.launch {
                                         snackbarHostState.showSnackbar(message)
-                                    }
-                                    result.onFailure { error ->
-                                        snackbarHostState.showSnackbar("Ошибка: "+error.localizedMessage)
                                     }
                                 }
                             }
