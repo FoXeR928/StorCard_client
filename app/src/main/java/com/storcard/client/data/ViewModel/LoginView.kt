@@ -1,4 +1,4 @@
-package com.storcard.client.data
+package com.storcard.client.data.ViewModel
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -20,8 +20,10 @@ class LoginViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val SERVER_URL_KEY = stringPreferencesKey("server_url")
+    private val TOKEN_KEY = stringPreferencesKey("jwt_token")
 
     val saveUrl: Flow<String> = dataStore.data.map { it[SERVER_URL_KEY] ?: "" }
+    val isAuthorized: Flow<Boolean?> = dataStore.data.map { it[TOKEN_KEY] != null }
 
     fun getUrl(url: String) {
         viewModelScope.launch {
@@ -33,7 +35,24 @@ class LoginViewModel @Inject constructor(
             val result = networkClient.checkConnect(url)
 
             result.onSuccess { message ->
-                onResult(message) // Передаем сообщение в UI
+                onResult(message)
+            }
+            result.onFailure { error ->
+                onResult("Ошибка: ${error.localizedMessage}")
+            }
+        }
+    }
+    fun performLogin(
+        user: String,
+        pass: String,
+        onResult: (String) -> Unit,
+        onSuccess: () -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = networkClient.login(user, pass)
+            result.onSuccess { message ->
+                onResult(message)
+                onSuccess()
             }
             result.onFailure { error ->
                 onResult("Ошибка: ${error.localizedMessage}")

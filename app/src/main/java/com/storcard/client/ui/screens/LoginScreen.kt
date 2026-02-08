@@ -9,11 +9,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Snackbar
@@ -31,14 +35,19 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.storcard.client.data.LoginViewModel
-import com.storcard.client.network.NetworkClient
+import com.storcard.client.data.ViewModel.LoginViewModel
 import kotlinx.coroutines.launch
 
 @Composable
-fun loginScreen(viewModel: LoginViewModel= hiltViewModel()) {
+fun loginScreen(
+        viewModel: LoginViewModel= hiltViewModel(),
+        onSuccess: () -> Unit,
+    ) {
     val savedServerUrl by viewModel.saveUrl.collectAsState(initial = "")
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -46,6 +55,7 @@ fun loginScreen(viewModel: LoginViewModel= hiltViewModel()) {
     var server by remember { mutableStateOf("") }
     val snackbarHostState=remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var passwordVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(savedServerUrl) {
         server=savedServerUrl
@@ -73,16 +83,42 @@ fun loginScreen(viewModel: LoginViewModel= hiltViewModel()) {
             OutlinedTextField(
                 value = username,
                 onValueChange = {username=it},
-                placeholder = { Text("Логин") }
+                label = { Text("Логин") },
+                singleLine = true
             )
             OutlinedTextField(
                 value = password,
                 onValueChange = {password=it},
-                placeholder = { Text("Пароль") }
+                label = { Text("Пароль") },
+                visualTransformation = if(passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                singleLine = true,
+                trailingIcon = {
+                    val image=if (passwordVisible){
+                        Icons.Filled.Visibility
+                    }else {
+                        Icons.Filled.VisibilityOff
+                    }
+                    IconButton(onClick = {passwordVisible=!passwordVisible}) {
+                        Icon(imageVector = image,contentDescription = null)
+                    }
+                }
             )
             Button(
                 onClick = {
-                    println("test")
+                    viewModel.performLogin(
+                        user=username,
+                        pass=password,
+                        onResult = { message ->
+                            scope.launch {
+                                snackbarHostState.showSnackbar(message)
+                            }
+                        },
+                        onSuccess = {->
+                            onSuccess()
+                        }
+
+                    )
                 }
             ){
                 Text(
@@ -106,7 +142,8 @@ fun loginScreen(viewModel: LoginViewModel= hiltViewModel()) {
                             value = server,
                             modifier= Modifier.fillMaxWidth().padding(vertical = 10.dp),
                             onValueChange = {server=it},
-                            placeholder = { Text("Сервер (localhost:11000)") }
+                            label = { Text("Сервер (localhost:7000)") },
+                            singleLine = true
                         )
                         Button(
                             modifier = Modifier.align(Alignment.End),
