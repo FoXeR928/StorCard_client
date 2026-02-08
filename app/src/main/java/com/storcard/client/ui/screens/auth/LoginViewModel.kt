@@ -1,4 +1,4 @@
-package com.storcard.client.data.ViewModel
+package com.storcard.client.ui.screens.auth
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences

@@ -13,9 +13,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.storcard.client.data.ViewModel.MainViewModel
-import com.storcard.client.ui.screens.MainScreen
-import com.storcard.client.ui.screens.loginScreen
+import com.storcard.client.ui.screens.main.MainViewModel
+import com.storcard.client.ui.screens.main.MainScreen
+import com.storcard.client.ui.screens.auth.loginScreen
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint

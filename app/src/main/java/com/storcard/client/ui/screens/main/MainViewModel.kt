@@ -1,4 +1,4 @@
-package com.storcard.client.data.ViewModel
+package com.storcard.client.ui.screens.main
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue

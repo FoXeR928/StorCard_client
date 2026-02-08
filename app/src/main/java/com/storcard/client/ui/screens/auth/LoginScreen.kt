@@ -1,4 +1,4 @@
-package com.storcard.client.ui.screens
+package com.storcard.client.ui.screens.auth
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
@@ -40,7 +40,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.storcard.client.data.ViewModel.LoginViewModel
+import com.storcard.client.ui.screens.auth.LoginViewModel
 import kotlinx.coroutines.launch
 
 @Composable
