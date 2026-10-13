@@ -46,24 +46,4 @@ Flutter-клиент для self-hosted сервера [**StorCard**](https://gi
 
 ## 📁 Структура проекта
 
-lib/
-├── main.dart # Точка входа, DI-контейнер
-├── app.dart # MaterialApp + темы
-├── core/ # Общие утилиты и виджеты
-│ ├── theme/ # Светлая/тёмная тема
-│ ├── utils/ # Хелперы (диалоги, штрихкоды)
-│ └── widgets/ # Переиспользуемые виджеты
-├── data/ # Работа с данными
-│ ├── local/ # Drift (SQLite) — локальная БД
-│ ├── models/ # DTO и модели данных
-│ ├── remote/ # API-клиенты (Dio)
-│ ├── repositories/ # Репозитории (CardRepository)
-│ └── services/ # Бизнес-логика (Auth, Sync, Admin)
-├── viewmodels/ # ViewModels (Provider)
-└── views/ # Экраны и UI
-├── admin/ # Админские экраны
-├── settings/ # Настройки
-└── widgets/ # Локальные виджеты экранов
-
-
 Архитектура — **MVVM**: View (UI) → ViewModel (состояние) → Service (логика) → Repository (данные).
