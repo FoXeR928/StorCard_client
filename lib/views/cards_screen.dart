@@ -1,0 +1,237 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:storcard_client/core/utils/dialogs.dart';
+
+import '../data/services/auth_service.dart';
+import '../data/services/sync_service.dart';
+import '../viewmodels/cards_viewmodel.dart';
+import 'card_editor_screen.dart';
+import 'card_view_screen.dart';
+import 'scanner_screen.dart';
+import 'widgets/account_sheet.dart';
+import 'widgets/card_tile.dart';
+import '../data/models/scan_result.dart';
+
+class CardsScreen extends StatelessWidget {
+  const CardsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<CardsViewModel>();
+    final searching = vm.query.isNotEmpty;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: searching
+            ? TextField(
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Поиск…',
+                  border: InputBorder.none,
+                  filled: false,
+                ),
+                onChanged: context.read<CardsViewModel>().setQuery,
+              )
+            : const Text('Мои карты'),
+        actions: [
+          if (searching)
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => context.read<CardsViewModel>().setQuery(''),
+            )
+          else ...[
+            IconButton(
+              icon: const Icon(Icons.qr_code_scanner),
+              tooltip: 'Сканировать',
+              onPressed: () => _scanAndCreate(context),
+            ),
+            IconButton(
+              icon: const Icon(Icons.search),
+              onPressed: () => context.read<CardsViewModel>().setQuery(' '),
+            ),
+            const AccountButton(),
+          ],
+        ],
+        bottom: context.watch<SyncService>().state == SyncState.syncing
+            ? const PreferredSize(
+                preferredSize: Size.fromHeight(2),
+                child: LinearProgressIndicator(minHeight: 2),
+              )
+            : null,
+      ),
+      body: _Body(vm: vm),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _openEditor(context),
+        tooltip: 'Добавить карту',
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  void _openEditor(BuildContext context) {
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const CardEditorScreen()));
+  }
+
+  Future<void> _scanAndCreate(BuildContext context) async {
+    final result = await Navigator.of(context).push<ScanResult>(
+      MaterialPageRoute(builder: (_) => const ScannerScreen()),
+    );
+    if (result == null || !context.mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CardEditorScreen(
+          prefillBarcode: result.value,
+          prefillCodeType: result.codeType,
+        ),
+      ),
+    );
+  }
+}
+
+class _Body extends StatelessWidget {
+  const _Body({required this.vm});
+  final CardsViewModel vm;
+
+  @override
+  Widget build(BuildContext context) {
+    if (vm.loading) return const Center(child: CircularProgressIndicator());
+    if (vm.error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text('Ошибка: ${vm.error}', textAlign: TextAlign.center),
+        ),
+      );
+    }
+    if (vm.cards.isEmpty) return const _EmptyState();
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        final auth = context.read<AuthService>();
+        if (!auth.isLoggedIn) return;
+        await context.read<SyncService>().sync();
+      },
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: vm.cards.length,
+        separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
+        itemBuilder: (_, i) {
+          final card = vm.cards[i];
+          return Dismissible(
+            key: ValueKey(card.id),
+            direction: DismissDirection.endToStart,
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 24),
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: Icon(
+                Icons.delete_outline,
+                color: Theme.of(context).colorScheme.onErrorContainer,
+              ),
+            ),
+            confirmDismiss: (_) => _confirmDelete(context, card.name),
+            onDismissed: (_) =>
+                context.read<CardsViewModel>().deleteCard(card.id),
+            child: CardTile(
+              card: card,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => CardViewScreen(cardId: card.id),
+                ),
+              ),
+              onDelete: () async {
+                if (await _confirmDelete(context, card.name) == true &&
+                    context.mounted) {
+                  await context.read<CardsViewModel>().deleteCard(card.id);
+                }
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<bool> _confirmDelete(BuildContext context, String name) {
+    return confirmDialog(
+      context,
+      title: 'Удалить карту?',
+      content: 'Карта «$name» будет удалена.',
+      confirmLabel: 'Удалить',
+      destructive: true,
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.credit_card_off_outlined,
+              size: 72,
+              color: theme.colorScheme.outline,
+            ),
+            const SizedBox(height: 16),
+            Text('Пока нет ни одной карты', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              'Нажми «+», чтобы добавить первую карту',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AccountButton extends StatelessWidget {
+  const AccountButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthService>();
+    final state = context.select<SyncService, SyncState>((s) => s.state);
+    final busy = state == SyncState.syncing;
+
+    return IconButton(
+      icon: busy
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(
+              auth.isLoggedIn
+                  ? Icons.cloud_done_outlined
+                  : Icons.cloud_off_outlined,
+              color: auth.isLoggedIn
+                  ? Theme.of(context).colorScheme.primary
+                  : null,
+            ),
+      tooltip: busy
+          ? 'Синхронизация…'
+          : (auth.isLoggedIn ? 'Синхронизировано' : 'Автономный режим'),
+      onPressed: busy
+          ? null
+          : () => showModalBottomSheet<void>(
+              context: context,
+              showDragHandle: true,
+              builder: (_) => const AccountSheet(),
+            ),
+    );
+  }
+}
