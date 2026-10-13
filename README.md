@@ -1,17 +1,69 @@
-# storcard_client
+# StorCard Client
 
-A new Flutter project.
+**Мобильное приложение для управления скидочными и дисконтными картами.**  
+Flutter-клиент для self-hosted сервера [**StorCard**](https://github.com/FoXeR928/StorCard).
 
-## Getting Started
+---
 
-This project is a starting point for a Flutter application.
+## ✨ Возможности
 
-A few resources to get you started if this is your first Flutter project:
+- 📇 **Хранение карт** — название, описание, штрихкод, изображение.
+- 📷 **Сканирование штрихкодов и QR-кодов** — добавление карты за пару секунд.
+- 🔐 **Авторизация** — JWT-токен с автообновлением сессии.
+- 👥 **Шеринг карт** — доступ по уровням `viewer` / `editor` / `owner`.
+- 🎁 **Передача владения** картой другому пользователю.
+- 🖼 **Загрузка изображений** карт с камеры или галереи.
+- 📴 **Offline-first** — приложение работает без сервера, синхронизация при подключении.
+- 🌗 **Тёмная и светлая тема** — Material 3.
+- 🔎 **Поиск по картам** — по названию, штрихкоду или заметке.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+---
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 🔗 Связанные репозитории
+
+| Компонент | Репозиторий | Описание |
+|-----------|-------------|----------|
+| **Сервер** | [FoXeR928/StorCard](https://github.com/FoXeR928/StorCard) | FastAPI-бэкенд: API, JWT, БД, медиа |
+| **Клиент** | [FoXeR928/StorCard_client](https://github.com/FoXeR928/StorCard_client) | Этот репозиторий — Flutter-приложение |
+
+> ⚠️ Для полноценной работы приложения требуется запущенный сервер StorCard.  
+> Инструкция по развёртыванию сервера — в его [README](https://github.com/FoXeR928/StorCard#быстрый-старт-docker).
+
+---
+
+## 🛠 Технологии
+
+- **Flutter 3.x** — кроссплатформенный UI-фреймворк.
+- **Dart 3.x** — язык разработки.
+- **Provider** — управление состоянием.
+- **Drift (SQLite)** — локальная база данных на устройстве.
+- **Dio** — HTTP-клиент с интерцепторами и автообновлением токена.
+- **mobile_scanner** — сканирование штрихкодов.
+- **barcode_widget** — отрисовка штрихкодов и QR.
+- **image_picker** — выбор изображений из галереи/камеры.
+
+---
+
+## 📁 Структура проекта
+
+lib/
+├── main.dart # Точка входа, DI-контейнер
+├── app.dart # MaterialApp + темы
+├── core/ # Общие утилиты и виджеты
+│ ├── theme/ # Светлая/тёмная тема
+│ ├── utils/ # Хелперы (диалоги, штрихкоды)
+│ └── widgets/ # Переиспользуемые виджеты
+├── data/ # Работа с данными
+│ ├── local/ # Drift (SQLite) — локальная БД
+│ ├── models/ # DTO и модели данных
+│ ├── remote/ # API-клиенты (Dio)
+│ ├── repositories/ # Репозитории (CardRepository)
+│ └── services/ # Бизнес-логика (Auth, Sync, Admin)
+├── viewmodels/ # ViewModels (Provider)
+└── views/ # Экраны и UI
+├── admin/ # Админские экраны
+├── settings/ # Настройки
+└── widgets/ # Локальные виджеты экранов
+
+
+Архитектура — **MVVM**: View (UI) → ViewModel (состояние) → Service (логика) → Repository (данные).
