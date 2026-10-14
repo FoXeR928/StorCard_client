@@ -92,8 +92,12 @@ class _CardEditorScreenState extends State<CardEditorScreen> {
               controller: _nameCtrl,
               decoration: const InputDecoration(labelText: 'Название магазина'),
               textCapitalization: TextCapitalization.sentences,
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Укажи название' : null,
+              maxLength: 100,
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return 'Укажи название';
+                if (v.trim().length > 100) return 'Максимум 100 символов';
+                return null;
+              },
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -106,8 +110,12 @@ class _CardEditorScreenState extends State<CardEditorScreen> {
                   onPressed: _scan,
                 ),
               ),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Укажи код' : null,
+              maxLength: 100,
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return 'Укажи код';
+                if (v.trim().length > 100) return 'Максимум 100 символов';
+                return null;
+              },
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
@@ -126,6 +134,13 @@ class _CardEditorScreenState extends State<CardEditorScreen> {
                 labelText: 'Заметка (необязательно)',
               ),
               maxLines: 3,
+              maxLength: 255,
+              validator: (v) {
+                if (v != null && v.length > 255) {
+                  return 'Максимум 255 символов';
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 24),
             FilledButton(

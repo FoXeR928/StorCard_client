@@ -137,6 +137,21 @@ class _LoginScreenState extends State<LoginScreen> {
                           (v == null || v.isEmpty) ? 'Укажи пароль' : null,
                       onFieldSubmitted: (_) => _submit(),
                     ),
+                    const SizedBox(height: 8),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: vm.rememberMe,
+                      onChanged: vm.loading
+                          ? null
+                          : (v) => vm.setRememberMe(v ?? false),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: const Text('Запомнить меня на 7 дней'),
+                      subtitle: const Text(
+                        'Иначе токен будет автоматически продлеваться '
+                        'в фоне каждые 30 минут',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
                     if (vm.error != null) ...[
                       const SizedBox(height: 16),
                       ErrorBanner(text: vm.error!),

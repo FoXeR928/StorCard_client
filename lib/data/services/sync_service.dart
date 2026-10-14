@@ -17,10 +17,12 @@ enum SyncState { idle, syncing, error, done }
 
 class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   SyncService({
-    required this._dbService,
+    required DatabaseService dbService,
     required SyncApi api,
-    required this._auth,
-  }) : _api = api {
+    required AuthService auth,
+  }) : _dbService = dbService,
+       _api = api,
+       _auth = auth {
     _auth.addListener(_onAuthChanged);
   }
 
@@ -103,22 +105,36 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     });
   }
 
+  // ------------------------------------------------------------
+  // Подписка на изменения локальной БД
+  // ------------------------------------------------------------
+
   void _subscribeToDirty() {
     _dirtySub?.cancel();
     _dirtySub = _db.select(_db.cardsTable).watch().listen((_) async {
-      if (!_auth.isLoggedIn) return;
+      final owner = _auth.username;
+      if (!_auth.isLoggedIn || owner == null) return;
+
       final dirty =
           await (_db.select(_db.cardsTable)
                 ..where(
-                  (t) => t.isDirty.equals(true) & t.pendingDelete.equals(false),
+                  (t) =>
+                      t.ownerLogin.equals(owner) &
+                      t.isDirty.equals(true) &
+                      t.pendingDelete.equals(false),
                 )
                 ..limit(1))
               .getSingleOrNull();
+
       final del =
           await (_db.select(_db.cardsTable)
-                ..where((t) => t.pendingDelete.equals(true))
+                ..where(
+                  (t) =>
+                      t.ownerLogin.equals(owner) & t.pendingDelete.equals(true),
+                )
                 ..limit(1))
               .getSingleOrNull();
+
       if (dirty == null && del == null) return;
       scheduleSync();
     });
@@ -156,6 +172,10 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  // ------------------------------------------------------------
+  // Полный цикл
+  // ------------------------------------------------------------
+
   Future<SyncResult> sync() async {
     if (_inProgress) return const SyncResult(pushed: 0, pulled: 0, deleted: 0);
     if (!_auth.isLoggedIn) {
@@ -175,6 +195,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
       final deleted = await _pushDeletions();
       final pulled = await _pull();
       _lastSyncAt = DateTime.now();
+      _lastFailureAt = null;
       _state = SyncState.done;
       return SyncResult(pushed: pushed, pulled: pulled, deleted: deleted);
     } on UnauthorizedException {
@@ -198,12 +219,20 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  // ---- PUSH ----
+  // ------------------------------------------------------------
+  // PUSH — только карты текущего пользователя
+  // ------------------------------------------------------------
 
   Future<int> _push() async {
+    final owner = _auth.username;
+    if (owner == null) return 0;
+
     final dirty =
         await (_db.select(_db.cardsTable)..where(
-              (t) => t.isDirty.equals(true) & t.pendingDelete.equals(false),
+              (t) =>
+                  t.ownerLogin.equals(owner) &
+                  t.isDirty.equals(true) &
+                  t.pendingDelete.equals(false),
             ))
             .get();
     if (dirty.isEmpty) return 0;
@@ -255,9 +284,14 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<int> _pushDeletions() async {
-    final toDelete = await (_db.select(
-      _db.cardsTable,
-    )..where((t) => t.pendingDelete.equals(true))).get();
+    final owner = _auth.username;
+    if (owner == null) return 0;
+
+    final toDelete =
+        await (_db.select(_db.cardsTable)..where(
+              (t) => t.ownerLogin.equals(owner) & t.pendingDelete.equals(true),
+            ))
+            .get();
     if (toDelete.isEmpty) return 0;
 
     var count = 0;
@@ -283,21 +317,34 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     return count;
   }
 
-  // ---- PULL ----
+  // ------------------------------------------------------------
+  // PULL — карты с сервера, привязанные к текущему пользователю
+  // ------------------------------------------------------------
 
   Future<int> _pull() async {
+    final owner = _auth.username;
+    if (owner == null) return 0;
+
     final remote = await _api.getCards();
     if (remote.isEmpty) return 0;
 
     var count = 0;
     for (final r in remote) {
-      var local = await (_db.select(
-        _db.cardsTable,
-      )..where((t) => t.serverId.equals(r.id))).getSingleOrNull();
+      // 1. Ищем по serverId среди карт текущего владельца
+      var local =
+          await (_db.select(_db.cardsTable)..where(
+                (t) => t.serverId.equals(r.id) & t.ownerLogin.equals(owner),
+              ))
+              .getSingleOrNull();
+
+      // 2. Fallback по barcode среди карт текущего владельца
       if (local == null && r.barcode.isNotEmpty) {
-        local = await (_db.select(
-          _db.cardsTable,
-        )..where((t) => t.barcode.equals(r.barcode))).getSingleOrNull();
+        local =
+            await (_db.select(_db.cardsTable)..where(
+                  (t) =>
+                      t.barcode.equals(r.barcode) & t.ownerLogin.equals(owner),
+                ))
+                .getSingleOrNull();
       }
 
       if (local == null) {
@@ -311,19 +358,24 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
                 about: Value(r.about),
                 image: Value(r.image),
                 codeType: Value(guessCodeType(r.barcode)),
+                ownerLogin: Value(owner),
                 isDirty: const Value(false),
                 pendingDelete: const Value(false),
               ),
             );
         count++;
       } else {
-        final existing = local; // ← фиксируем non-null
+        final existing = local;
         if (existing.serverId == null) {
           await (_db.update(_db.cardsTable)
                 ..where((t) => t.id.equals(existing.id)))
               .write(CardsTableCompanion(serverId: Value(r.id)));
         }
         if (existing.isDirty || existing.pendingDelete) continue;
+
+        final imageValue = r.image != null
+            ? Value(r.image)
+            : const Value<String?>.absent();
 
         await (_db.update(
           _db.cardsTable,
@@ -342,6 +394,10 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     }
     return count;
   }
+
+  // ------------------------------------------------------------
+  // Вспомогательные
+  // ------------------------------------------------------------
 
   Future<void> _writeLocal(
     Cards card, {

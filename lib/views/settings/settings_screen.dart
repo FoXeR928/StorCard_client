@@ -61,7 +61,7 @@ class _CardsCountTile extends StatelessWidget {
     return ListTile(
       leading: const Icon(Icons.credit_card_outlined),
       title: Text('Всего карт: ${vm.cards.length}'),
-      subtitle: const Text('Локальная база Isar'),
+      subtitle: const Text('Локальная база SQLite'),
       trailing: busy
           ? const SizedBox(
               width: 18,

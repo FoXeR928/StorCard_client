@@ -77,7 +77,7 @@ class _CardPage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.share_outlined),
             tooltip: 'Поделиться',
-            onPressed: () => _openShareSheet(context, card.serverId),
+            onPressed: () => _openShareSheet(context, card.serverId, card.name),
           ),
           IconButton(
             icon: const Icon(Icons.edit),
@@ -147,7 +147,11 @@ class _CardPage extends StatelessWidget {
     );
   }
 
-  void _openShareSheet(BuildContext context, String? serverId) {
+  void _openShareSheet(
+    BuildContext context,
+    String? serverId,
+    String cardName,
+  ) {
     if (serverId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -160,7 +164,7 @@ class _CardPage extends StatelessWidget {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (_) => ShareSheet(serverId: serverId, cardName: _name(context)),
+      builder: (_) => ShareSheet(serverId: serverId, cardName: cardName),
     );
   }
 

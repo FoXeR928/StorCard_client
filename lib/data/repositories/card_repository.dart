@@ -8,10 +8,19 @@ class CardRepository {
   final DatabaseService _service;
   AppDatabase get _db => _service.db;
 
-  Stream<List<Cards>> watchVisibleCards() {
+  /// Карты, видимые для указанного владельца.
+  /// - ownerLogin == null  → карты offline-сессии (owner_login IS NULL)
+  /// - ownerLogin != null  → карты этого пользователя
+  Stream<List<Cards>> watchVisibleCards(String? ownerLogin) {
     final q = _db.select(_db.cardsTable)
-      ..where((t) => t.pendingDelete.equals(false))
-      ..orderBy([(t) => OrderingTerm.asc(t.name)]);
+      ..where((t) => t.pendingDelete.equals(false));
+
+    if (ownerLogin == null) {
+      q.where((t) => t.ownerLogin.isNull());
+    } else {
+      q.where((t) => t.ownerLogin.equals(ownerLogin));
+    }
+    q.orderBy([(t) => OrderingTerm.asc(t.name)]);
     return q.watch();
   }
 
@@ -23,6 +32,7 @@ class CardRepository {
     required String name,
     required String barcode,
     required String codeType,
+    required String? ownerLogin,
     String? about,
     String? image,
   }) {
@@ -35,6 +45,7 @@ class CardRepository {
             codeType: Value(codeType),
             about: Value(about),
             image: Value(image),
+            ownerLogin: Value(ownerLogin),
             isDirty: const Value(true),
             pendingDelete: const Value(false),
           ),
@@ -70,5 +81,32 @@ class CardRepository {
         updatedAt: Value(DateTime.now()),
       ),
     );
+  }
+
+  // ---------- Миграция локальных карт ----------
+
+  /// Сколько карт без владельца (созданных offline).
+  Future<int> countLocalOnlyCards() async {
+    final q = _db.selectOnly(_db.cardsTable)
+      ..addColumns([_db.cardsTable.id.count()])
+      ..where(
+        _db.cardsTable.ownerLogin.isNull() &
+            _db.cardsTable.pendingDelete.equals(false),
+      );
+    final row = await q.getSingle();
+    return row.read(_db.cardsTable.id.count()) ?? 0;
+  }
+
+  /// Привязать все локальные карты к указанному пользователю.
+  Future<int> assignLocalCardsTo(String ownerLogin) async {
+    return (_db.update(_db.cardsTable)
+          ..where((t) => t.ownerLogin.isNull() & t.pendingDelete.equals(false)))
+        .write(
+          CardsTableCompanion(
+            ownerLogin: Value(ownerLogin),
+            isDirty: const Value(true),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
   }
 }

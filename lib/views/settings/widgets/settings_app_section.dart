@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/utils/dialogs.dart';
 import '../../../data/services/admin_service.dart';
+import '../../../data/services/app_info_service.dart';
 import '../../../data/services/auth_service.dart';
 
 class SettingsAppSection extends StatelessWidget {
@@ -11,17 +12,19 @@ class SettingsAppSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
+    final info = AppInfoService.instance.cached;
+
     return Column(
       children: [
-        const ListTile(
-          leading: Icon(Icons.info_outline),
-          title: Text('Версия'),
-          subtitle: Text('0.9.0'),
+        ListTile(
+          leading: const Icon(Icons.info_outline),
+          title: const Text('Версия'),
+          subtitle: Text(info?.versionFull ?? '—'),
         ),
-        const ListTile(
-          leading: Icon(Icons.code),
-          title: Text('StorCard'),
-          subtitle: Text('Offline-first дисконтные карты'),
+        ListTile(
+          leading: const Icon(Icons.code),
+          title: Text(info?.appName ?? 'StorCard'),
+          subtitle: Text(info?.description ?? 'Offline-first дисконтные карты'),
         ),
         const _ServerStatusTile(),
         const SizedBox(height: 16),

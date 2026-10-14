@@ -18,7 +18,7 @@ class ServerCard {
     name: _s(j['name']) ?? '',
     about: _s(j['about']),
     barcode: _s(j['barcode']) ?? '',
-    image: _s(j['image']),
+    image: _s(j['image_path'] ?? j['image']),
   );
 
   bool get isEmpty => id.isEmpty && name.isEmpty && barcode.isEmpty;

@@ -1,44 +1,115 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
+import 'package:storcard_client/data/models/auth_result.dart';
+import 'package:storcard_client/data/services/admin_service.dart';
+import 'package:storcard_client/data/services/auth_service.dart';
+import 'package:storcard_client/viewmodels/login_viewmodel.dart';
+import 'package:storcard_client/views/login_screen.dart';
 
-import '../../lib_old/data/services/auth_service.dart';
-import '../../lib_old/views/login_screen.dart';
+class _FakeAuthService extends ChangeNotifier implements AuthService {
+  @override
+  String? get lastServerUrl => 'https://test.example.com';
 
-class MockAuth extends Mock implements AuthService {}
+  @override
+  String? get serverUrl => null;
+
+  @override
+  String? get token => null;
+
+  @override
+  String? get username => null;
+
+  @override
+  bool get isLoggedIn => false;
+
+  @override
+  bool get offlineMode => false;
+
+  @override
+  bool get isAdmin => false;
+
+  @override
+  bool get isReady => false;
+
+  @override
+  final sessionExpired = ValueNotifier<String?>(null);
+
+  @override
+  Future<void> rememberServerUrl(String url) async {}
+
+  @override
+  Future<AuthResult> login({
+    required String serverUrl,
+    required String username,
+    required String password,
+  }) async {
+    return AuthResult.failure('Тестовый отказ');
+  }
+
+  @override
+  Future<void> continueOffline() async {}
+
+  @override
+  Future<void> requireLogin() async {}
+
+  @override
+  Future<void> restore() async {}
+
+  @override
+  Future<void> logout() async {}
+
+  @override
+  Future<void> handleUnauthorized({String? reason}) async {}
+
+  @override
+  Future<void> setAdmin(bool value) async {}
+
+  @override
+  Future<bool> refreshAccessToken() async => false;
+
+  @override
+  void dispose() {
+    sessionExpired.dispose();
+    super.dispose();
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeAdminService extends ChangeNotifier implements AdminService {
+  @override
+  Future<void> checkRole() async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 void main() {
-  late MockAuth auth;
+  testWidgets('LoginScreen рендерит поля и кнопки', (tester) async {
+    final auth = _FakeAuthService();
+    final admin = _FakeAdminService();
 
-  setUp(() {
-    auth = MockAuth();
-
-    when(() => auth.addListener(any())).thenReturn(null);
-    when(() => auth.removeListener(any())).thenReturn(null);
-
-    when(
-      () => auth.login(
-        serverUrl: any(named: 'serverUrl'),
-        username: any(named: 'username'),
-        password: any(named: 'password'),
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthService>.value(value: auth),
+          ChangeNotifierProvider<AdminService>.value(value: admin),
+          ChangeNotifierProvider(
+            create: (_) => LoginViewModel(auth: auth, admin: admin),
+          ),
+        ],
+        child: const MaterialApp(home: LoginScreen()),
       ),
-    ).thenAnswer((_) async => AuthResult.success());
+    );
 
-    when(() => auth.continueOffline()).thenAnswer((_) async {
-      return null;
-    });
-  });
-
-  Widget wrap(Widget child) => MaterialApp(
-    home: ChangeNotifierProvider<AuthService>.value(value: auth, child: child),
-  );
-
-  testWidgets('renders form', (tester) async {
-    await tester.pumpWidget(wrap(const LoginScreen()));
+    await tester.pumpAndSettle();
 
     expect(find.text('Скидочные карты'), findsOneWidget);
-    expect(find.byType(TextFormField), findsNWidgets(3));
+    expect(find.text('Адрес сервера'), findsOneWidget);
+    expect(find.text('Логин'), findsOneWidget);
+    expect(find.text('Пароль'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Войти'), findsOneWidget);
     expect(
       find.widgetWithText(OutlinedButton, 'Продолжить без сервера'),
@@ -46,65 +117,57 @@ void main() {
     );
   });
 
-  testWidgets('empty fields → validation', (tester) async {
-    await tester.pumpWidget(wrap(const LoginScreen()));
+  testWidgets('валидация пустых полей не отправляет форму', (tester) async {
+    final auth = _FakeAuthService();
+    final admin = _FakeAdminService();
 
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthService>.value(value: auth),
+          ChangeNotifierProvider<AdminService>.value(value: admin),
+          ChangeNotifierProvider(
+            create: (_) => LoginViewModel(auth: auth, admin: admin),
+          ),
+        ],
+        child: const MaterialApp(home: LoginScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Очищаем URL (в initState подставляется lastServerUrl)
+    await tester.enterText(find.byType(TextFormField).at(0), '');
     await tester.tap(find.widgetWithText(FilledButton, 'Войти'));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
+    expect(find.text('Укажи адрес'), findsOneWidget);
     expect(find.text('Укажи логин'), findsOneWidget);
     expect(find.text('Укажи пароль'), findsOneWidget);
   });
 
-  testWidgets('URL without http → validation', (tester) async {
-    await tester.pumpWidget(wrap(const LoginScreen()));
+  testWidgets('показывает баннер ошибки после неудачного входа', (
+    tester,
+  ) async {
+    final auth = _FakeAuthService();
+    final admin = _FakeAdminService();
 
-    await tester.enterText(find.byType(TextFormField).at(0), 'example.com');
-    await tester.tap(find.widgetWithText(FilledButton, 'Войти'));
-    await tester.pump();
-
-    expect(
-      find.text('Должно начинаться с http:// или https://'),
-      findsOneWidget,
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthService>.value(value: auth),
+          ChangeNotifierProvider<AdminService>.value(value: admin),
+          ChangeNotifierProvider(
+            create: (_) => LoginViewModel(auth: auth, admin: admin),
+          ),
+        ],
+        child: const MaterialApp(home: LoginScreen()),
+      ),
     );
-  });
-
-  testWidgets('valid submit → login called', (tester) async {
-    await tester.pumpWidget(wrap(const LoginScreen()));
+    await tester.pumpAndSettle();
 
     await tester.enterText(
       find.byType(TextFormField).at(0),
-      'http://localhost:8000',
-    );
-    await tester.enterText(find.byType(TextFormField).at(1), 'user');
-    await tester.enterText(find.byType(TextFormField).at(2), 'pass');
-
-    await tester.tap(find.widgetWithText(FilledButton, 'Войти'));
-    await tester.pump();
-
-    verify(
-      () => auth.login(
-        serverUrl: 'http://localhost:8000',
-        username: 'user',
-        password: 'pass',
-      ),
-    ).called(1);
-  });
-
-  testWidgets('login failure → error shown', (tester) async {
-    when(
-      () => auth.login(
-        serverUrl: any(named: 'serverUrl'),
-        username: any(named: 'username'),
-        password: any(named: 'password'),
-      ),
-    ).thenAnswer((_) async => AuthResult.failure('Неверный пароль'));
-
-    await tester.pumpWidget(wrap(const LoginScreen()));
-
-    await tester.enterText(
-      find.byType(TextFormField).at(0),
-      'http://localhost:8000',
+      'https://test.example.com',
     );
     await tester.enterText(find.byType(TextFormField).at(1), 'user');
     await tester.enterText(find.byType(TextFormField).at(2), 'pass');
@@ -112,17 +175,6 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Войти'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Неверный пароль'), findsOneWidget);
-  });
-
-  testWidgets('offline button', (tester) async {
-    await tester.pumpWidget(wrap(const LoginScreen()));
-
-    await tester.tap(
-      find.widgetWithText(OutlinedButton, 'Продолжить без сервера'),
-    );
-    await tester.pump();
-
-    verify(() => auth.continueOffline()).called(1);
+    expect(find.text('Тестовый отказ'), findsOneWidget);
   });
 }

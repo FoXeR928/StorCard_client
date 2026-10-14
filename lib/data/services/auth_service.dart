@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +16,9 @@ class AuthService extends ChangeNotifier {
   static const _kIsAdmin = 'is_admin';
   static const _kLastServerUrl = 'last_server_url';
 
+  /// Обновляем access-токен заранее, до его истечения.
+  static const _refreshLead = Duration(minutes: 5);
+
   String? _serverUrl;
   String? _token;
   String? _refreshToken;
@@ -22,8 +28,10 @@ class AuthService extends ChangeNotifier {
   String? _lastServerUrl;
 
   /// Событие для UI: сюда пишем сообщение при провале обновления токена.
-  /// AuthGate слушает и показывает SnackBar.
   final sessionExpired = ValueNotifier<String?>(null);
+
+  Timer? _refreshTimer;
+  Future<bool>? _refreshInFlight;
 
   String? get serverUrl => _serverUrl;
   String? get token => _token;
@@ -34,7 +42,9 @@ class AuthService extends ChangeNotifier {
   bool get isAdmin => _isAdmin;
   bool get isReady => isLoggedIn || _offlineMode;
 
-  Future<bool>? _refreshInFlight;
+  // ------------------------------------------------------------
+  // Восстановление состояния
+  // ------------------------------------------------------------
 
   Future<void> restore() async {
     final p = await SharedPreferences.getInstance();
@@ -46,12 +56,18 @@ class AuthService extends ChangeNotifier {
     _isAdmin = p.getBool(_kIsAdmin) ?? false;
     _lastServerUrl = p.getString(_kLastServerUrl);
     notifyListeners();
+    if (isLoggedIn) _scheduleRefresh();
   }
+
+  // ------------------------------------------------------------
+  // Логин
+  // ------------------------------------------------------------
 
   Future<AuthResult> login({
     required String serverUrl,
     required String username,
     required String password,
+    bool rememberMe = false,
   }) async {
     final normalized = serverUrl.trim().replaceAll(RegExp(r'/+$'), '');
     final uri = Uri.tryParse(normalized);
@@ -70,6 +86,8 @@ class AuthService extends ChangeNotifier {
     );
 
     try {
+      final path = rememberMe ? '/auth/login?remember_me=true' : '/auth/login';
+
       final res = await dio.post(
         '/auth/login',
         data: {
@@ -100,6 +118,8 @@ class AuthService extends ChangeNotifier {
       _offlineMode = false;
       _isAdmin = false;
       _lastServerUrl = normalized;
+
+      _scheduleRefresh();
       notifyListeners();
       return AuthResult.success();
     } on DioException catch (e) {
@@ -109,8 +129,10 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  /// Обмен refresh → access. Возвращает true при успехе.
-  /// Защищено от параллельных вызовов — все запросы получат один и тот же Future.
+  // ------------------------------------------------------------
+  // Refresh
+  // ------------------------------------------------------------
+
   Future<bool> refreshAccessToken() {
     final existing = _refreshInFlight;
     if (existing != null) return existing;
@@ -144,16 +166,80 @@ class AuthService extends ChangeNotifier {
       _token = newAccess;
       final p = await SharedPreferences.getInstance();
       await p.setString(_kToken, newAccess);
-      // notifyListeners НЕ зовём — иначе SyncService начнёт синкать по каждому refresh
+
+      _scheduleRefresh();
       return true;
     } catch (_) {
       return false;
     }
   }
 
-  /// Пометить сессию сломанной: стираем токены, переводим в offline,
-  /// и уведомляем UI через ValueNotifier.
+  // ------------------------------------------------------------
+  // Фоновое обновление токена
+  // ------------------------------------------------------------
+
+  /// Парсит exp из JWT (payload — без проверки подписи).
+  DateTime? _parseTokenExp(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      final payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(parts[1])),
+      );
+      final map = jsonDecode(payload) as Map<String, dynamic>;
+      final exp = map['exp'];
+      if (exp is int) return DateTime.fromMillisecondsSinceEpoch(exp * 1000);
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Ставит таймер: обновить access-токен за `_refreshLead` до истечения.
+  void _scheduleRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+
+    final token = _token;
+    if (token == null || _serverUrl == null || _refreshToken == null) return;
+
+    final exp = _parseTokenExp(token);
+    if (exp == null) return;
+
+    final remaining = exp.difference(DateTime.now());
+    final delay = remaining - _refreshLead;
+
+    if (delay.isNegative) {
+      // Уже скоро истечёт — обновляем сразу.
+      _runBackgroundRefresh();
+      return;
+    }
+
+    _refreshTimer = Timer(delay, _runBackgroundRefresh);
+  }
+
+  Future<void> _runBackgroundRefresh() async {
+    final ok = await refreshAccessToken();
+    // При неудаче ничего не делаем: следующий 401 от ApiClient решит судьбу сессии.
+    if (!ok) return;
+  }
+
+  // ------------------------------------------------------------
+  // Прочее
+  // ------------------------------------------------------------
+
+  Future<void> setAdmin(bool value) async {
+    if (_isAdmin == value) return;
+    _isAdmin = value;
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(_kIsAdmin, value);
+    notifyListeners();
+  }
+
   Future<void> handleUnauthorized({String? reason}) async {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+
     final p = await SharedPreferences.getInstance();
     await p.remove(_kServerUrl);
     await p.remove(_kToken);
@@ -174,14 +260,6 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setAdmin(bool value) async {
-    if (_isAdmin == value) return;
-    _isAdmin = value;
-    final p = await SharedPreferences.getInstance();
-    await p.setBool(_kIsAdmin, value);
-    notifyListeners();
-  }
-
   Future<void> continueOffline() async {
     final p = await SharedPreferences.getInstance();
     await p.setBool(_kOffline, true);
@@ -199,6 +277,22 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    final url = _serverUrl;
+    final token = _token;
+    if (url != null && token != null) {
+      try {
+        await Dio(BaseOptions(baseUrl: url)).post(
+          '/auth/logout',
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        );
+      } catch (_) {
+        // Игнорируем — logout локально всё равно выполнится.
+      }
+    }
+
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+
     final p = await SharedPreferences.getInstance();
     await p.remove(_kServerUrl);
     await p.remove(_kToken);
@@ -206,6 +300,7 @@ class AuthService extends ChangeNotifier {
     await p.remove(_kUsername);
     await p.setBool(_kOffline, true);
     await p.setBool(_kIsAdmin, false);
+
     _serverUrl = null;
     _token = null;
     _refreshToken = null;
@@ -224,6 +319,7 @@ class AuthService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     sessionExpired.dispose();
     super.dispose();
   }

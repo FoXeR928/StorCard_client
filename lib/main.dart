@@ -8,6 +8,7 @@ import 'data/remote/api_client.dart';
 import 'data/remote/sync_api.dart';
 import 'data/repositories/card_repository.dart';
 import 'data/services/admin_service.dart';
+import 'data/services/app_info_service.dart';
 import 'data/services/auth_service.dart';
 import 'data/services/image_service.dart';
 import 'data/services/recipient_directory.dart';
@@ -18,6 +19,9 @@ import 'viewmodels/login_viewmodel.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Читаем версию/описание приложения до первого build.
+  await AppInfoService.instance.load();
   await DatabaseService.instance.init();
 
   final auth = AuthService();
@@ -49,8 +53,9 @@ Future<void> main() async {
         Provider<ApiClient>.value(value: apiClient),
         Provider<SharingService>.value(value: sharingService),
         Provider<ImageService>.value(value: imageService),
+
         // ---- ViewModels ----
-        ChangeNotifierProvider(create: (_) => CardsViewModel(repo)),
+        ChangeNotifierProvider(create: (_) => CardsViewModel(repo, auth)),
         ChangeNotifierProvider(
           create: (_) => LoginViewModel(auth: auth, admin: adminService),
         ),

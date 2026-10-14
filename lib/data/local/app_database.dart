@@ -11,6 +11,10 @@ class CardsTable extends Table {
   TextColumn get barcode => text()();
   TextColumn get image => text().nullable()();
   TextColumn get codeType => text().withDefault(const Constant('code128'))();
+
+  /// Логин владельца. null = карта создана в offline-режиме, ещё никому не принадлежит.
+  TextColumn get ownerLogin => text().nullable()();
+
   BoolColumn get isDirty => boolean().withDefault(const Constant(true))();
   BoolColumn get pendingDelete =>
       boolean().withDefault(const Constant(false))();
@@ -26,5 +30,15 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.addColumn(cardsTable, cardsTable.ownerLogin);
+      }
+    },
+  );
 }

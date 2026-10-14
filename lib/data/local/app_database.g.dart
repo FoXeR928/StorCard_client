@@ -83,6 +83,17 @@ class $CardsTableTable extends CardsTable
     requiredDuringInsert: false,
     defaultValue: const Constant('code128'),
   );
+  static const VerificationMeta _ownerLoginMeta = const VerificationMeta(
+    'ownerLogin',
+  );
+  @override
+  late final GeneratedColumn<String> ownerLogin = GeneratedColumn<String>(
+    'owner_login',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _isDirtyMeta = const VerificationMeta(
     'isDirty',
   );
@@ -146,6 +157,7 @@ class $CardsTableTable extends CardsTable
     barcode,
     image,
     codeType,
+    ownerLogin,
     isDirty,
     pendingDelete,
     createdAt,
@@ -204,6 +216,12 @@ class $CardsTableTable extends CardsTable
       context.handle(
         _codeTypeMeta,
         codeType.isAcceptableOrUnknown(data['code_type']!, _codeTypeMeta),
+      );
+    }
+    if (data.containsKey('owner_login')) {
+      context.handle(
+        _ownerLoginMeta,
+        ownerLogin.isAcceptableOrUnknown(data['owner_login']!, _ownerLoginMeta),
       );
     }
     if (data.containsKey('is_dirty')) {
@@ -270,6 +288,10 @@ class $CardsTableTable extends CardsTable
         DriftSqlType.string,
         data['${effectivePrefix}code_type'],
       )!,
+      ownerLogin: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}owner_login'],
+      ),
       isDirty: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_dirty'],
@@ -303,6 +325,9 @@ class Cards extends DataClass implements Insertable<Cards> {
   final String barcode;
   final String? image;
   final String codeType;
+
+  /// Логин владельца. null = карта создана в offline-режиме, ещё никому не принадлежит.
+  final String? ownerLogin;
   final bool isDirty;
   final bool pendingDelete;
   final DateTime createdAt;
@@ -315,6 +340,7 @@ class Cards extends DataClass implements Insertable<Cards> {
     required this.barcode,
     this.image,
     required this.codeType,
+    this.ownerLogin,
     required this.isDirty,
     required this.pendingDelete,
     required this.createdAt,
@@ -336,6 +362,9 @@ class Cards extends DataClass implements Insertable<Cards> {
       map['image'] = Variable<String>(image);
     }
     map['code_type'] = Variable<String>(codeType);
+    if (!nullToAbsent || ownerLogin != null) {
+      map['owner_login'] = Variable<String>(ownerLogin);
+    }
     map['is_dirty'] = Variable<bool>(isDirty);
     map['pending_delete'] = Variable<bool>(pendingDelete);
     map['created_at'] = Variable<DateTime>(createdAt);
@@ -358,6 +387,9 @@ class Cards extends DataClass implements Insertable<Cards> {
           ? const Value.absent()
           : Value(image),
       codeType: Value(codeType),
+      ownerLogin: ownerLogin == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ownerLogin),
       isDirty: Value(isDirty),
       pendingDelete: Value(pendingDelete),
       createdAt: Value(createdAt),
@@ -378,6 +410,7 @@ class Cards extends DataClass implements Insertable<Cards> {
       barcode: serializer.fromJson<String>(json['barcode']),
       image: serializer.fromJson<String?>(json['image']),
       codeType: serializer.fromJson<String>(json['codeType']),
+      ownerLogin: serializer.fromJson<String?>(json['ownerLogin']),
       isDirty: serializer.fromJson<bool>(json['isDirty']),
       pendingDelete: serializer.fromJson<bool>(json['pendingDelete']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -395,6 +428,7 @@ class Cards extends DataClass implements Insertable<Cards> {
       'barcode': serializer.toJson<String>(barcode),
       'image': serializer.toJson<String?>(image),
       'codeType': serializer.toJson<String>(codeType),
+      'ownerLogin': serializer.toJson<String?>(ownerLogin),
       'isDirty': serializer.toJson<bool>(isDirty),
       'pendingDelete': serializer.toJson<bool>(pendingDelete),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -410,6 +444,7 @@ class Cards extends DataClass implements Insertable<Cards> {
     String? barcode,
     Value<String?> image = const Value.absent(),
     String? codeType,
+    Value<String?> ownerLogin = const Value.absent(),
     bool? isDirty,
     bool? pendingDelete,
     DateTime? createdAt,
@@ -422,6 +457,7 @@ class Cards extends DataClass implements Insertable<Cards> {
     barcode: barcode ?? this.barcode,
     image: image.present ? image.value : this.image,
     codeType: codeType ?? this.codeType,
+    ownerLogin: ownerLogin.present ? ownerLogin.value : this.ownerLogin,
     isDirty: isDirty ?? this.isDirty,
     pendingDelete: pendingDelete ?? this.pendingDelete,
     createdAt: createdAt ?? this.createdAt,
@@ -436,6 +472,9 @@ class Cards extends DataClass implements Insertable<Cards> {
       barcode: data.barcode.present ? data.barcode.value : this.barcode,
       image: data.image.present ? data.image.value : this.image,
       codeType: data.codeType.present ? data.codeType.value : this.codeType,
+      ownerLogin: data.ownerLogin.present
+          ? data.ownerLogin.value
+          : this.ownerLogin,
       isDirty: data.isDirty.present ? data.isDirty.value : this.isDirty,
       pendingDelete: data.pendingDelete.present
           ? data.pendingDelete.value
@@ -455,6 +494,7 @@ class Cards extends DataClass implements Insertable<Cards> {
           ..write('barcode: $barcode, ')
           ..write('image: $image, ')
           ..write('codeType: $codeType, ')
+          ..write('ownerLogin: $ownerLogin, ')
           ..write('isDirty: $isDirty, ')
           ..write('pendingDelete: $pendingDelete, ')
           ..write('createdAt: $createdAt, ')
@@ -472,6 +512,7 @@ class Cards extends DataClass implements Insertable<Cards> {
     barcode,
     image,
     codeType,
+    ownerLogin,
     isDirty,
     pendingDelete,
     createdAt,
@@ -488,6 +529,7 @@ class Cards extends DataClass implements Insertable<Cards> {
           other.barcode == this.barcode &&
           other.image == this.image &&
           other.codeType == this.codeType &&
+          other.ownerLogin == this.ownerLogin &&
           other.isDirty == this.isDirty &&
           other.pendingDelete == this.pendingDelete &&
           other.createdAt == this.createdAt &&
@@ -502,6 +544,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
   final Value<String> barcode;
   final Value<String?> image;
   final Value<String> codeType;
+  final Value<String?> ownerLogin;
   final Value<bool> isDirty;
   final Value<bool> pendingDelete;
   final Value<DateTime> createdAt;
@@ -514,6 +557,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
     this.barcode = const Value.absent(),
     this.image = const Value.absent(),
     this.codeType = const Value.absent(),
+    this.ownerLogin = const Value.absent(),
     this.isDirty = const Value.absent(),
     this.pendingDelete = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -527,6 +571,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
     required String barcode,
     this.image = const Value.absent(),
     this.codeType = const Value.absent(),
+    this.ownerLogin = const Value.absent(),
     this.isDirty = const Value.absent(),
     this.pendingDelete = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -541,6 +586,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
     Expression<String>? barcode,
     Expression<String>? image,
     Expression<String>? codeType,
+    Expression<String>? ownerLogin,
     Expression<bool>? isDirty,
     Expression<bool>? pendingDelete,
     Expression<DateTime>? createdAt,
@@ -554,6 +600,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
       if (barcode != null) 'barcode': barcode,
       if (image != null) 'image': image,
       if (codeType != null) 'code_type': codeType,
+      if (ownerLogin != null) 'owner_login': ownerLogin,
       if (isDirty != null) 'is_dirty': isDirty,
       if (pendingDelete != null) 'pending_delete': pendingDelete,
       if (createdAt != null) 'created_at': createdAt,
@@ -569,6 +616,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
     Value<String>? barcode,
     Value<String?>? image,
     Value<String>? codeType,
+    Value<String?>? ownerLogin,
     Value<bool>? isDirty,
     Value<bool>? pendingDelete,
     Value<DateTime>? createdAt,
@@ -582,6 +630,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
       barcode: barcode ?? this.barcode,
       image: image ?? this.image,
       codeType: codeType ?? this.codeType,
+      ownerLogin: ownerLogin ?? this.ownerLogin,
       isDirty: isDirty ?? this.isDirty,
       pendingDelete: pendingDelete ?? this.pendingDelete,
       createdAt: createdAt ?? this.createdAt,
@@ -613,6 +662,9 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
     if (codeType.present) {
       map['code_type'] = Variable<String>(codeType.value);
     }
+    if (ownerLogin.present) {
+      map['owner_login'] = Variable<String>(ownerLogin.value);
+    }
     if (isDirty.present) {
       map['is_dirty'] = Variable<bool>(isDirty.value);
     }
@@ -638,6 +690,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
           ..write('barcode: $barcode, ')
           ..write('image: $image, ')
           ..write('codeType: $codeType, ')
+          ..write('ownerLogin: $ownerLogin, ')
           ..write('isDirty: $isDirty, ')
           ..write('pendingDelete: $pendingDelete, ')
           ..write('createdAt: $createdAt, ')
@@ -666,6 +719,7 @@ typedef $$CardsTableTableCreateCompanionBuilder = CardsTableCompanion Function({
   required String barcode,
   Value<String?> image,
   Value<String> codeType,
+  Value<String?> ownerLogin,
   Value<bool> isDirty,
   Value<bool> pendingDelete,
   Value<DateTime> createdAt,
@@ -679,6 +733,7 @@ typedef $$CardsTableTableUpdateCompanionBuilder = CardsTableCompanion Function({
   Value<String> barcode,
   Value<String?> image,
   Value<String> codeType,
+  Value<String?> ownerLogin,
   Value<bool> isDirty,
   Value<bool> pendingDelete,
   Value<DateTime> createdAt,
@@ -726,6 +781,11 @@ class $$CardsTableTableFilterComposer
 
   ColumnFilters<String> get codeType => $composableBuilder(
     column: $table.codeType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ownerLogin => $composableBuilder(
+    column: $table.ownerLogin,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -794,6 +854,11 @@ class $$CardsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get ownerLogin => $composableBuilder(
+    column: $table.ownerLogin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isDirty => $composableBuilder(
     column: $table.isDirty,
     builder: (column) => ColumnOrderings(column),
@@ -845,6 +910,11 @@ class $$CardsTableTableAnnotationComposer
   GeneratedColumn<String> get codeType =>
       $composableBuilder(column: $table.codeType, builder: (column) => column);
 
+  GeneratedColumn<String> get ownerLogin => $composableBuilder(
+    column: $table.ownerLogin,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get isDirty =>
       $composableBuilder(column: $table.isDirty, builder: (column) => column);
 
@@ -895,6 +965,7 @@ class $$CardsTableTableTableManager
                 Value<String> barcode = const Value.absent(),
                 Value<String?> image = const Value.absent(),
                 Value<String> codeType = const Value.absent(),
+                Value<String?> ownerLogin = const Value.absent(),
                 Value<bool> isDirty = const Value.absent(),
                 Value<bool> pendingDelete = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -907,6 +978,7 @@ class $$CardsTableTableTableManager
                 barcode: barcode,
                 image: image,
                 codeType: codeType,
+                ownerLogin: ownerLogin,
                 isDirty: isDirty,
                 pendingDelete: pendingDelete,
                 createdAt: createdAt,
@@ -921,6 +993,7 @@ class $$CardsTableTableTableManager
                 required String barcode,
                 Value<String?> image = const Value.absent(),
                 Value<String> codeType = const Value.absent(),
+                Value<String?> ownerLogin = const Value.absent(),
                 Value<bool> isDirty = const Value.absent(),
                 Value<bool> pendingDelete = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -933,6 +1006,7 @@ class $$CardsTableTableTableManager
                 barcode: barcode,
                 image: image,
                 codeType: codeType,
+                ownerLogin: ownerLogin,
                 isDirty: isDirty,
                 pendingDelete: pendingDelete,
                 createdAt: createdAt,

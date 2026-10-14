@@ -12,10 +12,18 @@ class LoginViewModel extends ChangeNotifier {
 
   bool _loading = false;
   String? _error;
+  bool _rememberMe = false; 
 
   bool get loading => _loading;
   String? get error => _error;
   String? get lastServerUrl => _auth.lastServerUrl;
+  bool get rememberMe => _rememberMe;
+
+  void setRememberMe(bool value) {
+    if (_rememberMe == value) return;
+    _rememberMe = value;
+    notifyListeners();
+  }
 
   void clearError() {
     if (_error == null) return;
@@ -38,6 +46,7 @@ class LoginViewModel extends ChangeNotifier {
       serverUrl: serverUrl,
       username: username,
       password: password,
+      rememberMe: _rememberMe,
     );
 
     if (!result.isSuccess) {

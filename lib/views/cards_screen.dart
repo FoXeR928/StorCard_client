@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:storcard_client/core/utils/dialogs.dart';
 
+import '../data/models/scan_result.dart';
 import '../data/services/auth_service.dart';
 import '../data/services/sync_service.dart';
 import '../viewmodels/cards_viewmodel.dart';
@@ -10,10 +11,88 @@ import 'card_view_screen.dart';
 import 'scanner_screen.dart';
 import 'widgets/account_sheet.dart';
 import 'widgets/card_tile.dart';
-import '../data/models/scan_result.dart';
 
-class CardsScreen extends StatelessWidget {
+class CardsScreen extends StatefulWidget {
   const CardsScreen({super.key});
+
+  @override
+  State<CardsScreen> createState() => _CardsScreenState();
+}
+
+class _CardsScreenState extends State<CardsScreen> {
+  CardsViewModel? _vm;
+
+  @override
+  void initState() {
+    super.initState();
+    // Подписываемся на ViewModel — реагируем, как только появятся локальные
+    // карты после входа в аккаунт.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _vm = context.read<CardsViewModel>();
+      _vm!.addListener(_onVmChanged);
+      _onVmChanged(); // проверяем состояние сразу
+    });
+  }
+
+  @override
+  void dispose() {
+    _vm?.removeListener(_onVmChanged);
+    super.dispose();
+  }
+
+  void _onVmChanged() {
+    if (!mounted) return;
+    final vm = _vm;
+    if (vm == null || !vm.shouldShowLocalCardsDialog) return;
+
+    // Помечаем сразу — чтобы не сработало на следующее notifyListeners().
+    vm.markLocalCardsDialogShown();
+
+    // Показываем диалог в следующем кадре (вне текущей нотификации).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _showLocalCardsDialog(vm.pendingLocalCardsCount);
+    });
+  }
+
+  Future<void> _showLocalCardsDialog(int count) async {
+    final choice = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Локальные карты'),
+        content: Text(
+          'Найдено $count карт, созданных без входа в аккаунт.\n\n'
+          'Привязать их к текущему аккаунту? После синхронизации '
+          'они станут доступны на всех ваших устройствах.\n\n'
+          'Если оставить — они будут видны только в автономном '
+          'режиме на этом устройстве.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Оставить локально'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Привязать'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+    final vm = context.read<CardsViewModel>();
+    if (choice == true) {
+      await vm.assignLocalCardsToCurrentUser();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Карты привязаны к аккаунту')),
+      );
+    } else {
+      vm.dismissLocalCardsDialog();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
