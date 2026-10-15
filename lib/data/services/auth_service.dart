@@ -17,7 +17,7 @@ class AuthService extends ChangeNotifier {
   static const _kLastServerUrl = 'last_server_url';
 
   /// Обновляем access-токен заранее, до его истечения.
-  static const _refreshLead = Duration(minutes: 5);
+  static const _refreshLead = Duration(days: 1);
 
   String? _serverUrl;
   String? _token;
@@ -105,7 +105,11 @@ class AuthService extends ChangeNotifier {
       final p = await SharedPreferences.getInstance();
       await p.setString(_kServerUrl, normalized);
       await p.setString(_kToken, token);
-      if (refresh != null) await p.setString(_kRefresh, refresh);
+      if (refresh != null) {
+        await p.setString(_kRefresh, refresh);
+      } else {
+        await p.remove(_kRefresh);   // без галочки refresh не нужен
+      }
       await p.setString(_kUsername, username);
       await p.setBool(_kOffline, false);
       await p.setString(_kLastServerUrl, normalized);
@@ -161,11 +165,15 @@ class AuthService extends ChangeNotifier {
         data: {'refresh_token': refresh},
       );
       final newAccess = res.data['access_token'] as String?;
+      final newRefresh = res.data['refresh_token'] as String?;
       if (newAccess == null) return false;
 
       _token = newAccess;
+      if (newRefresh != null) _refreshToken = newRefresh;
+
       final p = await SharedPreferences.getInstance();
       await p.setString(_kToken, newAccess);
+      if (newRefresh != null) await p.setString(_kRefresh, newRefresh);
 
       _scheduleRefresh();
       return true;

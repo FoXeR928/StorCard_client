@@ -4,8 +4,14 @@ import 'package:provider/provider.dart';
 import '../../data/services/auth_service.dart';
 
 class CardImage extends StatelessWidget {
-  const CardImage({super.key, required this.raw});
+  const CardImage({
+    super.key,
+    required this.raw,
+    this.fit = BoxFit.contain,
+  });
+
   final String raw;
+  final BoxFit fit;
 
   @override
   Widget build(BuildContext context) {
@@ -14,16 +20,16 @@ class CardImage extends StatelessWidget {
 
     return Image.network(
       url,
-      fit: BoxFit.contain,
+      fit: fit,
+      width: double.infinity,
+      height: double.infinity,
       loadingBuilder: (_, child, progress) {
         if (progress == null) return child;
-        return const SizedBox(
-          height: 200,
-          child: Center(child: CircularProgressIndicator()),
+        return const Center(
+          child: CircularProgressIndicator(strokeWidth: 2),
         );
       },
       errorBuilder: (_, _, _) => Container(
-        height: 200,
         alignment: Alignment.center,
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         child: const Icon(Icons.broken_image_outlined, size: 48),

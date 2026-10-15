@@ -145,10 +145,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           ? null
                           : (v) => vm.setRememberMe(v ?? false),
                       controlAffinity: ListTileControlAffinity.leading,
-                      title: const Text('Запомнить меня на 7 дней'),
+                      title: const Text('Продлевать авторизацию'),
                       subtitle: const Text(
-                        'Иначе токен будет автоматически продлеваться '
-                        'в фоне каждые 30 минут',
+                        'Без галочки: сессия живёт 7 дней и не продлевается. '
+                        'С галочкой: сессия продлевается автоматически, '
+                        'пока вы заходите хотя бы раз в месяц.',
                         style: TextStyle(fontSize: 12),
                       ),
                     ),

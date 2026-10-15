@@ -3,20 +3,25 @@ import 'package:flutter/material.dart';
 class AppTheme {
   static const _seed = Color(0xFF2E7D32);
 
-  static ThemeData light() => _build(Brightness.light);
-  static ThemeData dark() => _build(Brightness.dark);
+  /// Если передана динамическая схема от системы (Material You) —
+  /// используется она. Иначе — fallback на фирменный зелёный.
+  static ThemeData light([ColorScheme? dynamicScheme]) => _build(
+    dynamicScheme ??
+        ColorScheme.fromSeed(seedColor: _seed, brightness: Brightness.light),
+  );
 
-  static ThemeData _build(Brightness brightness) {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: _seed,
-      brightness: brightness,
-    );
+  static ThemeData dark([ColorScheme? dynamicScheme]) => _build(
+    dynamicScheme ??
+        ColorScheme.fromSeed(seedColor: _seed, brightness: Brightness.dark),
+  );
+
+  static ThemeData _build(ColorScheme scheme) {
     final radius = BorderRadius.circular(14);
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: scheme.surface,
+      scaffoldBackgroundColor: scheme.surfaceContainerLowest,
       appBarTheme: AppBarTheme(
         backgroundColor: scheme.surface,
         foregroundColor: scheme.onSurface,

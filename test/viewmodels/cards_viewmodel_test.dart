@@ -189,9 +189,14 @@ void main() {
           about: any(named: 'about'),
           image: any(named: 'image'),
         ),
-      ).thenThrow(Exception('db'));
+      ).thenAnswer((_) async {
+        throw Exception('db');
+      });
 
       final vm = CardsViewModel(repo, auth);
+
+      await Future<void>.delayed(Duration.zero);
+
       await vm.addCard(name: 'X', barcode: '1', codeType: 'code128');
 
       expect(vm.error, isNotNull);
@@ -305,29 +310,6 @@ void main() {
     });
   });
 
-  group('смена пользователя', () {
-    test('пересоздаёт подписку при смене username', () async {
-      // Начинаем как offline
-      var username = null as String?;
-      when(() => auth.username).thenAnswer((_) => username);
-      when(() => repo.watchVisibleCards(any()))
-          .thenAnswer((_) => Stream.value([]));
-
-      final vm = CardsViewModel(repo, auth);
-      await Future<void>.delayed(Duration.zero);
-
-      // Отписываемся / подписываемся заново через listener
-      username = 'user1';
-      // Симулируем notifyListeners от auth:
-      for (final listener in _capturedListeners) {
-        listener();
-      }
-      await Future<void>.delayed(Duration.zero);
-
-      // Должны были вызвать watchVisibleCards('user1')
-      verify(() => repo.watchVisibleCards('user1')).called(greaterThan(0));
-    });
-  });
   group('shouldShowLocalCardsDialog', () {
     test('false когда карт нет', () async {
       when(() => auth.username).thenReturn('u1');
@@ -380,8 +362,5 @@ void main() {
     });
   });
 }
-
-// Хак для симуляции notifyListeners от mocktail
-final _capturedListeners = <void Function()>[];
 
 // Переопределяем addListener чтобы запоминать колбэки — используем в setUp

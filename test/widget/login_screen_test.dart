@@ -9,6 +9,9 @@ import 'package:storcard_client/views/login_screen.dart';
 
 class _FakeAuthService extends ChangeNotifier implements AuthService {
   @override
+  final sessionExpired = ValueNotifier<String?>(null);
+
+  @override
   String? get lastServerUrl => 'https://test.example.com';
 
   @override
@@ -33,19 +36,27 @@ class _FakeAuthService extends ChangeNotifier implements AuthService {
   bool get isReady => false;
 
   @override
-  final sessionExpired = ValueNotifier<String?>(null);
-
-  @override
   Future<void> rememberServerUrl(String url) async {}
 
+  // ← ВАЖНО: добавлен rememberMe, иначе не совпадает с интерфейсом
   @override
   Future<AuthResult> login({
     required String serverUrl,
     required String username,
     required String password,
+    bool rememberMe = false,
   }) async {
     return AuthResult.failure('Тестовый отказ');
   }
+
+  @override
+  Future<bool> refreshAccessToken() async => false;
+
+  @override
+  Future<void> handleUnauthorized({String? reason}) async {}
+
+  @override
+  Future<void> setAdmin(bool value) async {}
 
   @override
   Future<void> continueOffline() async {}
@@ -60,22 +71,10 @@ class _FakeAuthService extends ChangeNotifier implements AuthService {
   Future<void> logout() async {}
 
   @override
-  Future<void> handleUnauthorized({String? reason}) async {}
-
-  @override
-  Future<void> setAdmin(bool value) async {}
-
-  @override
-  Future<bool> refreshAccessToken() async => false;
-
-  @override
   void dispose() {
     sessionExpired.dispose();
     super.dispose();
   }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeAdminService extends ChangeNotifier implements AdminService {
@@ -83,27 +82,53 @@ class _FakeAdminService extends ChangeNotifier implements AdminService {
   Future<void> checkRole() async {}
 
   @override
+  Future<void> loadUsers() async {}
+
+  @override
+  Future<void> loadAllCards() async {}
+
+  @override
+  Future<void> checkServerStatus() async {}
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
-  testWidgets('LoginScreen рендерит поля и кнопки', (tester) async {
-    final auth = _FakeAuthService();
-    final admin = _FakeAdminService();
+  /// Размер экрана в тестах по умолчанию — 800×600, из-за чего
+  /// кнопка «Войти» (после чекбокса) уезжает ниже экрана.
+  /// Ставим размер реального телефона.
+  setUp(() {
+    final view =
+        TestWidgetsFlutterBinding.instance.platformDispatcher.views.first;
+    view.physicalSize = const Size(1080, 2400);
+    view.devicePixelRatio = 3.0;
+  });
 
-    await tester.pumpWidget(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider<AuthService>.value(value: auth),
-          ChangeNotifierProvider<AdminService>.value(value: admin),
-          ChangeNotifierProvider(
-            create: (_) => LoginViewModel(auth: auth, admin: admin),
-          ),
-        ],
-        child: const MaterialApp(home: LoginScreen()),
-      ),
+  tearDown(() {
+    final view =
+        TestWidgetsFlutterBinding.instance.platformDispatcher.views.first;
+    view.resetPhysicalSize();
+    view.resetDevicePixelRatio();
+  });
+
+  Widget _wrap({required AuthService auth, required AdminService admin}) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AuthService>.value(value: auth),
+        ChangeNotifierProvider<AdminService>.value(value: admin),
+        ChangeNotifierProvider(
+          create: (_) => LoginViewModel(auth: auth, admin: admin),
+        ),
+      ],
+      child: const MaterialApp(home: LoginScreen()),
     );
+  }
 
+  testWidgets('LoginScreen рендерит поля и кнопки', (tester) async {
+    await tester.pumpWidget(
+      _wrap(auth: _FakeAuthService(), admin: _FakeAdminService()),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Скидочные карты'), findsOneWidget);
@@ -118,20 +143,8 @@ void main() {
   });
 
   testWidgets('валидация пустых полей не отправляет форму', (tester) async {
-    final auth = _FakeAuthService();
-    final admin = _FakeAdminService();
-
     await tester.pumpWidget(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider<AuthService>.value(value: auth),
-          ChangeNotifierProvider<AdminService>.value(value: admin),
-          ChangeNotifierProvider(
-            create: (_) => LoginViewModel(auth: auth, admin: admin),
-          ),
-        ],
-        child: const MaterialApp(home: LoginScreen()),
-      ),
+      _wrap(auth: _FakeAuthService(), admin: _FakeAdminService()),
     );
     await tester.pumpAndSettle();
 
@@ -148,20 +161,8 @@ void main() {
   testWidgets('показывает баннер ошибки после неудачного входа', (
     tester,
   ) async {
-    final auth = _FakeAuthService();
-    final admin = _FakeAdminService();
-
     await tester.pumpWidget(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider<AuthService>.value(value: auth),
-          ChangeNotifierProvider<AdminService>.value(value: admin),
-          ChangeNotifierProvider(
-            create: (_) => LoginViewModel(auth: auth, admin: admin),
-          ),
-        ],
-        child: const MaterialApp(home: LoginScreen()),
-      ),
+      _wrap(auth: _FakeAuthService(), admin: _FakeAdminService()),
     );
     await tester.pumpAndSettle();
 

@@ -273,8 +273,11 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
         }
         count++;
       } on DioException catch (e) {
-        if (e.response?.statusCode == 404) {
+        final code = e.response?.statusCode;
+        if (code == 404) {
           await _hardDeleteLocal(card.id);
+        } else if (code == 403) {
+          await _writeLocal(card, serverId: null, dirty: true);
         } else {
           rethrow;
         }
@@ -306,7 +309,8 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
         await _hardDeleteLocal(card.id);
         count++;
       } on DioException catch (e) {
-        if (e.response?.statusCode == 404) {
+        final code = e.response?.statusCode;
+        if (code == 404 || code == 403) {
           await _hardDeleteLocal(card.id);
           count++;
         } else {

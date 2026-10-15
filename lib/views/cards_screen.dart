@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:storcard_client/core/utils/dialogs.dart';
 
+import '../core/utils/dialogs.dart';
+import '../data/local/app_database.dart';
 import '../data/models/scan_result.dart';
 import '../data/services/auth_service.dart';
 import '../data/services/sync_service.dart';
@@ -10,7 +11,7 @@ import 'card_editor_screen.dart';
 import 'card_view_screen.dart';
 import 'scanner_screen.dart';
 import 'widgets/account_sheet.dart';
-import 'widgets/card_tile.dart';
+import 'widgets/card_grid_tile.dart';
 
 class CardsScreen extends StatefulWidget {
   const CardsScreen({super.key});
@@ -25,13 +26,11 @@ class _CardsScreenState extends State<CardsScreen> {
   @override
   void initState() {
     super.initState();
-    // Подписываемся на ViewModel — реагируем, как только появятся локальные
-    // карты после входа в аккаунт.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _vm = context.read<CardsViewModel>();
       _vm!.addListener(_onVmChanged);
-      _onVmChanged(); // проверяем состояние сразу
+      _onVmChanged();
     });
   }
 
@@ -46,10 +45,8 @@ class _CardsScreenState extends State<CardsScreen> {
     final vm = _vm;
     if (vm == null || !vm.shouldShowLocalCardsDialog) return;
 
-    // Помечаем сразу — чтобы не сработало на следующее notifyListeners().
     vm.markLocalCardsDialogShown();
 
-    // Показываем диалог в следующем кадре (вне текущей нотификации).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _showLocalCardsDialog(vm.pendingLocalCardsCount);
     });
@@ -191,55 +188,43 @@ class _Body extends StatelessWidget {
         if (!auth.isLoggedIn) return;
         await context.read<SyncService>().sync();
       },
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+      child: GridView.builder(
+        padding: const EdgeInsets.all(12),
+        physics: const AlwaysScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 220,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.35,
+        ),
         itemCount: vm.cards.length,
-        separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
         itemBuilder: (_, i) {
           final card = vm.cards[i];
-          return Dismissible(
-            key: ValueKey(card.id),
-            direction: DismissDirection.endToStart,
-            background: Container(
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 24),
-              color: Theme.of(context).colorScheme.errorContainer,
-              child: Icon(
-                Icons.delete_outline,
-                color: Theme.of(context).colorScheme.onErrorContainer,
+          return CardGridTile(
+            card: card,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => CardViewScreen(cardId: card.id),
               ),
             ),
-            confirmDismiss: (_) => _confirmDelete(context, card.name),
-            onDismissed: (_) =>
-                context.read<CardsViewModel>().deleteCard(card.id),
-            child: CardTile(
-              card: card,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => CardViewScreen(cardId: card.id),
-                ),
-              ),
-              onDelete: () async {
-                if (await _confirmDelete(context, card.name) == true &&
-                    context.mounted) {
-                  await context.read<CardsViewModel>().deleteCard(card.id);
-                }
-              },
-            ),
+            onLongPress: () => _confirmDelete(context, card),
           );
         },
       ),
     );
   }
 
-  Future<bool> _confirmDelete(BuildContext context, String name) {
-    return confirmDialog(
+  Future<void> _confirmDelete(BuildContext context, Cards card) async {
+    final ok = await confirmDialog(
       context,
       title: 'Удалить карту?',
-      content: 'Карта «$name» будет удалена.',
+      content: 'Карта «${card.name}» будет удалена.',
       confirmLabel: 'Удалить',
       destructive: true,
     );
+    if (ok && context.mounted) {
+      await context.read<CardsViewModel>().deleteCard(card.id);
+    }
   }
 }
 
