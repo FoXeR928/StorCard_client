@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.storcard_client"
+    namespace = "ru.foxer928.storcard_client"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -33,7 +33,13 @@ android {
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
+            // Для личного использования подписываем debug-ключом, 
+            // чтобы не генерировать keystore. 
+            // Для публикации в Play Market нужен свой релизный ключ.
             signingConfig = signingConfigs.getByName("debug")
+            
+            // <-- ВКЛЮЧАЕМ ОПТИМИЗАЦИЮ РАЗМЕРА
+            isMinifyEnabled = true
         }
     }
 }
