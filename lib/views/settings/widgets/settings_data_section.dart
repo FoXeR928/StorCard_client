@@ -1,7 +1,11 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/utils/dialogs.dart';
+import '../../../data/services/backup_service.dart';
 import '../../../data/services/sync_service.dart';
 import '../../../viewmodels/cards_viewmodel.dart';
 
@@ -82,19 +86,52 @@ class SettingsDataSection extends StatelessWidget {
         ),
         ListTile(
           leading: const Icon(Icons.download_for_offline),
-          title: const Text('Импорт карт (JSON)'),
-          subtitle: const Text('Вставить JSON из буфера обмена'),
+          title: const Text('Импорт карт из файла'),
+          subtitle: const Text('Выбрать файл .storcard'),
           onTap: () async {
-            final text = await promptDialog(
-              context,
-              title: 'Импорт',
-              label: 'Вставьте JSON',
-              maxLines: 5,
+            // 1. Выбираем файл
+            final List<PlatformFile>? result = await FilePicker.pickFiles(
+              type: FileType.any,
             );
-            if (text != null && text.isNotEmpty && context.mounted) {
-              final count = await vm.importFromJson(text);
-              if (context.mounted)
-                showSnack(context, 'Импортировано карт: $count');
+
+            // Проверяем, что файл выбран
+            if (result == null || result.isEmpty) return;
+
+            // Берем первый файл из списка
+            final file = File(result.first.path!);
+            final bytes = await file.readAsBytes();
+
+            if (!context.mounted) return;
+
+            // 2. Спрашиваем пароль
+            final pass = await promptDialog(
+              context,
+              title: 'Пароль от файла',
+              label: 'Введите пароль',
+              obscure: true,
+            );
+            if (pass == null || pass.isEmpty) return;
+
+            // 3. Расшифровываем
+            final decrypted = BackupService.instance.decryptFromBytes(
+              bytes,
+              pass,
+            );
+            if (decrypted == null) {
+              if (context.mounted) {
+                showSnack(
+                  context,
+                  'Неверный пароль или файл поврежден',
+                  error: true,
+                );
+              }
+              return;
+            }
+
+            // 4. Импортируем
+            final count = await vm.importFromJson(decrypted);
+            if (context.mounted) {
+              showSnack(context, 'Импортировано карт: $count');
             }
           },
         ),

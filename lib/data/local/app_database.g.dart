@@ -94,6 +94,17 @@ class $CardsTableTable extends CardsTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _serverOwnerLoginMeta = const VerificationMeta(
+    'serverOwnerLogin',
+  );
+  @override
+  late final GeneratedColumn<String> serverOwnerLogin = GeneratedColumn<String>(
+    'server_owner_login',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _isFavoriteMeta = const VerificationMeta(
     'isFavorite',
   );
@@ -173,6 +184,7 @@ class $CardsTableTable extends CardsTable
     image,
     codeType,
     ownerLogin,
+    serverOwnerLogin,
     isFavorite,
     isDirty,
     pendingDelete,
@@ -238,6 +250,15 @@ class $CardsTableTable extends CardsTable
       context.handle(
         _ownerLoginMeta,
         ownerLogin.isAcceptableOrUnknown(data['owner_login']!, _ownerLoginMeta),
+      );
+    }
+    if (data.containsKey('server_owner_login')) {
+      context.handle(
+        _serverOwnerLoginMeta,
+        serverOwnerLogin.isAcceptableOrUnknown(
+          data['server_owner_login']!,
+          _serverOwnerLoginMeta,
+        ),
       );
     }
     if (data.containsKey('is_favorite')) {
@@ -314,6 +335,10 @@ class $CardsTableTable extends CardsTable
         DriftSqlType.string,
         data['${effectivePrefix}owner_login'],
       ),
+      serverOwnerLogin: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}server_owner_login'],
+      ),
       isFavorite: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_favorite'],
@@ -354,6 +379,9 @@ class Cards extends DataClass implements Insertable<Cards> {
 
   /// Логин владельца. null = карта создана в offline-режиме, ещё никому не принадлежит.
   final String? ownerLogin;
+
+  /// Реальный владелец на сервере (приходит с бэкенда)
+  final String? serverOwnerLogin;
   final bool isFavorite;
   final bool isDirty;
   final bool pendingDelete;
@@ -368,6 +396,7 @@ class Cards extends DataClass implements Insertable<Cards> {
     this.image,
     required this.codeType,
     this.ownerLogin,
+    this.serverOwnerLogin,
     required this.isFavorite,
     required this.isDirty,
     required this.pendingDelete,
@@ -392,6 +421,9 @@ class Cards extends DataClass implements Insertable<Cards> {
     map['code_type'] = Variable<String>(codeType);
     if (!nullToAbsent || ownerLogin != null) {
       map['owner_login'] = Variable<String>(ownerLogin);
+    }
+    if (!nullToAbsent || serverOwnerLogin != null) {
+      map['server_owner_login'] = Variable<String>(serverOwnerLogin);
     }
     map['is_favorite'] = Variable<bool>(isFavorite);
     map['is_dirty'] = Variable<bool>(isDirty);
@@ -419,6 +451,9 @@ class Cards extends DataClass implements Insertable<Cards> {
       ownerLogin: ownerLogin == null && nullToAbsent
           ? const Value.absent()
           : Value(ownerLogin),
+      serverOwnerLogin: serverOwnerLogin == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serverOwnerLogin),
       isFavorite: Value(isFavorite),
       isDirty: Value(isDirty),
       pendingDelete: Value(pendingDelete),
@@ -441,6 +476,7 @@ class Cards extends DataClass implements Insertable<Cards> {
       image: serializer.fromJson<String?>(json['image']),
       codeType: serializer.fromJson<String>(json['codeType']),
       ownerLogin: serializer.fromJson<String?>(json['ownerLogin']),
+      serverOwnerLogin: serializer.fromJson<String?>(json['serverOwnerLogin']),
       isFavorite: serializer.fromJson<bool>(json['isFavorite']),
       isDirty: serializer.fromJson<bool>(json['isDirty']),
       pendingDelete: serializer.fromJson<bool>(json['pendingDelete']),
@@ -460,6 +496,7 @@ class Cards extends DataClass implements Insertable<Cards> {
       'image': serializer.toJson<String?>(image),
       'codeType': serializer.toJson<String>(codeType),
       'ownerLogin': serializer.toJson<String?>(ownerLogin),
+      'serverOwnerLogin': serializer.toJson<String?>(serverOwnerLogin),
       'isFavorite': serializer.toJson<bool>(isFavorite),
       'isDirty': serializer.toJson<bool>(isDirty),
       'pendingDelete': serializer.toJson<bool>(pendingDelete),
@@ -477,6 +514,7 @@ class Cards extends DataClass implements Insertable<Cards> {
     Value<String?> image = const Value.absent(),
     String? codeType,
     Value<String?> ownerLogin = const Value.absent(),
+    Value<String?> serverOwnerLogin = const Value.absent(),
     bool? isFavorite,
     bool? isDirty,
     bool? pendingDelete,
@@ -491,6 +529,9 @@ class Cards extends DataClass implements Insertable<Cards> {
     image: image.present ? image.value : this.image,
     codeType: codeType ?? this.codeType,
     ownerLogin: ownerLogin.present ? ownerLogin.value : this.ownerLogin,
+    serverOwnerLogin: serverOwnerLogin.present
+        ? serverOwnerLogin.value
+        : this.serverOwnerLogin,
     isFavorite: isFavorite ?? this.isFavorite,
     isDirty: isDirty ?? this.isDirty,
     pendingDelete: pendingDelete ?? this.pendingDelete,
@@ -509,6 +550,9 @@ class Cards extends DataClass implements Insertable<Cards> {
       ownerLogin: data.ownerLogin.present
           ? data.ownerLogin.value
           : this.ownerLogin,
+      serverOwnerLogin: data.serverOwnerLogin.present
+          ? data.serverOwnerLogin.value
+          : this.serverOwnerLogin,
       isFavorite: data.isFavorite.present
           ? data.isFavorite.value
           : this.isFavorite,
@@ -532,6 +576,7 @@ class Cards extends DataClass implements Insertable<Cards> {
           ..write('image: $image, ')
           ..write('codeType: $codeType, ')
           ..write('ownerLogin: $ownerLogin, ')
+          ..write('serverOwnerLogin: $serverOwnerLogin, ')
           ..write('isFavorite: $isFavorite, ')
           ..write('isDirty: $isDirty, ')
           ..write('pendingDelete: $pendingDelete, ')
@@ -551,6 +596,7 @@ class Cards extends DataClass implements Insertable<Cards> {
     image,
     codeType,
     ownerLogin,
+    serverOwnerLogin,
     isFavorite,
     isDirty,
     pendingDelete,
@@ -569,6 +615,7 @@ class Cards extends DataClass implements Insertable<Cards> {
           other.image == this.image &&
           other.codeType == this.codeType &&
           other.ownerLogin == this.ownerLogin &&
+          other.serverOwnerLogin == this.serverOwnerLogin &&
           other.isFavorite == this.isFavorite &&
           other.isDirty == this.isDirty &&
           other.pendingDelete == this.pendingDelete &&
@@ -585,6 +632,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
   final Value<String?> image;
   final Value<String> codeType;
   final Value<String?> ownerLogin;
+  final Value<String?> serverOwnerLogin;
   final Value<bool> isFavorite;
   final Value<bool> isDirty;
   final Value<bool> pendingDelete;
@@ -599,6 +647,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
     this.image = const Value.absent(),
     this.codeType = const Value.absent(),
     this.ownerLogin = const Value.absent(),
+    this.serverOwnerLogin = const Value.absent(),
     this.isFavorite = const Value.absent(),
     this.isDirty = const Value.absent(),
     this.pendingDelete = const Value.absent(),
@@ -614,6 +663,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
     this.image = const Value.absent(),
     this.codeType = const Value.absent(),
     this.ownerLogin = const Value.absent(),
+    this.serverOwnerLogin = const Value.absent(),
     this.isFavorite = const Value.absent(),
     this.isDirty = const Value.absent(),
     this.pendingDelete = const Value.absent(),
@@ -630,6 +680,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
     Expression<String>? image,
     Expression<String>? codeType,
     Expression<String>? ownerLogin,
+    Expression<String>? serverOwnerLogin,
     Expression<bool>? isFavorite,
     Expression<bool>? isDirty,
     Expression<bool>? pendingDelete,
@@ -645,6 +696,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
       if (image != null) 'image': image,
       if (codeType != null) 'code_type': codeType,
       if (ownerLogin != null) 'owner_login': ownerLogin,
+      if (serverOwnerLogin != null) 'server_owner_login': serverOwnerLogin,
       if (isFavorite != null) 'is_favorite': isFavorite,
       if (isDirty != null) 'is_dirty': isDirty,
       if (pendingDelete != null) 'pending_delete': pendingDelete,
@@ -662,6 +714,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
     Value<String?>? image,
     Value<String>? codeType,
     Value<String?>? ownerLogin,
+    Value<String?>? serverOwnerLogin,
     Value<bool>? isFavorite,
     Value<bool>? isDirty,
     Value<bool>? pendingDelete,
@@ -677,6 +730,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
       image: image ?? this.image,
       codeType: codeType ?? this.codeType,
       ownerLogin: ownerLogin ?? this.ownerLogin,
+      serverOwnerLogin: serverOwnerLogin ?? this.serverOwnerLogin,
       isFavorite: isFavorite ?? this.isFavorite,
       isDirty: isDirty ?? this.isDirty,
       pendingDelete: pendingDelete ?? this.pendingDelete,
@@ -712,6 +766,9 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
     if (ownerLogin.present) {
       map['owner_login'] = Variable<String>(ownerLogin.value);
     }
+    if (serverOwnerLogin.present) {
+      map['server_owner_login'] = Variable<String>(serverOwnerLogin.value);
+    }
     if (isFavorite.present) {
       map['is_favorite'] = Variable<bool>(isFavorite.value);
     }
@@ -741,6 +798,7 @@ class CardsTableCompanion extends UpdateCompanion<Cards> {
           ..write('image: $image, ')
           ..write('codeType: $codeType, ')
           ..write('ownerLogin: $ownerLogin, ')
+          ..write('serverOwnerLogin: $serverOwnerLogin, ')
           ..write('isFavorite: $isFavorite, ')
           ..write('isDirty: $isDirty, ')
           ..write('pendingDelete: $pendingDelete, ')
@@ -771,6 +829,7 @@ typedef $$CardsTableTableCreateCompanionBuilder = CardsTableCompanion Function({
   Value<String?> image,
   Value<String> codeType,
   Value<String?> ownerLogin,
+  Value<String?> serverOwnerLogin,
   Value<bool> isFavorite,
   Value<bool> isDirty,
   Value<bool> pendingDelete,
@@ -786,6 +845,7 @@ typedef $$CardsTableTableUpdateCompanionBuilder = CardsTableCompanion Function({
   Value<String?> image,
   Value<String> codeType,
   Value<String?> ownerLogin,
+  Value<String?> serverOwnerLogin,
   Value<bool> isFavorite,
   Value<bool> isDirty,
   Value<bool> pendingDelete,
@@ -839,6 +899,11 @@ class $$CardsTableTableFilterComposer
 
   ColumnFilters<String> get ownerLogin => $composableBuilder(
     column: $table.ownerLogin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get serverOwnerLogin => $composableBuilder(
+    column: $table.serverOwnerLogin,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -917,6 +982,11 @@ class $$CardsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get serverOwnerLogin => $composableBuilder(
+    column: $table.serverOwnerLogin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isFavorite => $composableBuilder(
     column: $table.isFavorite,
     builder: (column) => ColumnOrderings(column),
@@ -978,6 +1048,11 @@ class $$CardsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get serverOwnerLogin => $composableBuilder(
+    column: $table.serverOwnerLogin,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get isFavorite => $composableBuilder(
     column: $table.isFavorite,
     builder: (column) => column,
@@ -1034,6 +1109,7 @@ class $$CardsTableTableTableManager
                 Value<String?> image = const Value.absent(),
                 Value<String> codeType = const Value.absent(),
                 Value<String?> ownerLogin = const Value.absent(),
+                Value<String?> serverOwnerLogin = const Value.absent(),
                 Value<bool> isFavorite = const Value.absent(),
                 Value<bool> isDirty = const Value.absent(),
                 Value<bool> pendingDelete = const Value.absent(),
@@ -1048,6 +1124,7 @@ class $$CardsTableTableTableManager
                 image: image,
                 codeType: codeType,
                 ownerLogin: ownerLogin,
+                serverOwnerLogin: serverOwnerLogin,
                 isFavorite: isFavorite,
                 isDirty: isDirty,
                 pendingDelete: pendingDelete,
@@ -1064,6 +1141,7 @@ class $$CardsTableTableTableManager
                 Value<String?> image = const Value.absent(),
                 Value<String> codeType = const Value.absent(),
                 Value<String?> ownerLogin = const Value.absent(),
+                Value<String?> serverOwnerLogin = const Value.absent(),
                 Value<bool> isFavorite = const Value.absent(),
                 Value<bool> isDirty = const Value.absent(),
                 Value<bool> pendingDelete = const Value.absent(),
@@ -1078,6 +1156,7 @@ class $$CardsTableTableTableManager
                 image: image,
                 codeType: codeType,
                 ownerLogin: ownerLogin,
+                serverOwnerLogin: serverOwnerLogin,
                 isFavorite: isFavorite,
                 isDirty: isDirty,
                 pendingDelete: pendingDelete,

@@ -15,15 +15,15 @@ class CardsTable extends Table {
   /// Логин владельца. null = карта создана в offline-режиме, ещё никому не принадлежит.
   TextColumn get ownerLogin => text().nullable()();
 
+  /// Реальный владелец на сервере (приходит с бэкенда)
+  TextColumn get serverOwnerLogin => text().nullable()();
+
   BoolColumn get isFavorite => boolean().withDefault(const Constant(false))();
   BoolColumn get isDirty => boolean().withDefault(const Constant(true))();
   BoolColumn get pendingDelete =>
       boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
-
-  @override
-  Set<Column> get primaryKey => {id};
 }
 
 @DriftDatabase(tables: [CardsTable])
@@ -31,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -42,6 +42,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 3) {
         await m.addColumn(cardsTable, cardsTable.isFavorite);
+      }
+      if (from < 4) {
+        await m.addColumn(cardsTable, cardsTable.serverOwnerLogin);
       }
     },
   );

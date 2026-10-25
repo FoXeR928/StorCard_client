@@ -236,6 +236,11 @@ class _Body extends StatelessWidget {
   }
 
   void _showActions(BuildContext context, Cards card) {
+    final auth = context.read<AuthService>();
+    final canDelete =
+        card.serverOwnerLogin == null ||
+        card.serverOwnerLogin == auth.username ||
+        auth.isAdmin;
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -256,17 +261,18 @@ class _Body extends StatelessWidget {
                 );
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text(
-                'Удалить карту',
-                style: TextStyle(color: Colors.red),
+            if (canDelete)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text(
+                  'Удалить карту',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _confirmDelete(context, card);
+                },
               ),
-              onTap: () {
-                Navigator.pop(context);
-                _confirmDelete(context, card);
-              },
-            ),
           ],
         ),
       ),

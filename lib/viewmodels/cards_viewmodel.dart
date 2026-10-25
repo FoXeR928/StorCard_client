@@ -270,7 +270,16 @@ class CardsViewModel extends ChangeNotifier {
   /// Импорт карт из JSON-строки (используется в диалоге вставки).
   Future<int> importFromJson(String jsonString) async {
     try {
-      final List<dynamic> data = jsonDecode(jsonString);
+      final dynamic decoded = jsonDecode(jsonString);
+      List<dynamic> data;
+      if (decoded is List) {
+        data = decoded;
+      } else if (decoded is Map && decoded['cards'] is List) {
+        data = decoded['cards'] as List;
+      } else {
+        throw FormatException('Неизвестный формат файла');
+      }
+
       int count = 0;
       for (final item in data) {
         await _repo.createCard(

@@ -365,6 +365,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
                 image: Value(r.image),
                 codeType: Value(guessCodeType(r.barcode)),
                 ownerLogin: Value(owner),
+                serverOwnerLogin: Value(r.ownerLogin), // <-- ТУТ
                 isDirty: const Value(false),
                 pendingDelete: const Value(false),
               ),
@@ -394,6 +395,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
             about: Value(r.about),
             barcode: Value(r.barcode),
             image: imageValue,
+            serverOwnerLogin: Value(r.ownerLogin), // <-- ТУТ
             updatedAt: Value(DateTime.now()),
           ),
         );
