@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../data/services/admin_service.dart';
-import '../data/services/auth_service.dart';
-import 'cards_screen.dart';
-import 'login_screen.dart';
+import '../../data/services/admin_service.dart';
+import '../../data/services/auth_service.dart';
+import '../cards/cards_screen.dart'; // <-- Изменен путь
+import 'login_screen.dart'; // <-- Тот же уровень
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -29,7 +29,6 @@ class _AuthGateState extends State<AuthGate> {
     final auth = context.read<AuthService>();
     await auth.restore();
 
-    // Слушаем сигнал о сбое авторизации
     auth.sessionExpired.addListener(_onSessionExpired);
 
     if (auth.isLoggedIn && mounted) {
@@ -42,7 +41,6 @@ class _AuthGateState extends State<AuthGate> {
     final message = context.read<AuthService>().sessionExpired.value;
     if (message == null || !mounted) return;
 
-    // Один раз показать и сбросить
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)

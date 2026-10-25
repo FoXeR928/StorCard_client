@@ -2,7 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:storcard_client/data/local/app_database.dart';
 import 'package:storcard_client/data/local/database_service.dart';
-import 'package:storcard_client/data/repositories/card_repository.dart';
+import 'package:storcard_client/data/services/card_repository.dart';
 
 void main() {
   late AppDatabase db;

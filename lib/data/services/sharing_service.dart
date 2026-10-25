@@ -1,21 +1,21 @@
 import 'package:dio/dio.dart';
 
-import '../remote/api_client.dart';
+import '../remote/card_api.dart';
 
 class SharingService {
-  SharingService(this._apiClient);
-  final ApiClient _apiClient;
+  SharingService(this._api);
+  final CardApi _api;
 
-  /// null — успех, иначе текст ошибки.
   Future<String?> share({
     required String serverId,
     required String targetLogin,
     required String accessLevel,
   }) async {
     try {
-      await _apiClient.client.post(
-        '/cards/$serverId/share',
-        data: {'target_login': targetLogin, 'access_level': accessLevel},
+      await _api.shareCard(
+        serverId: serverId,
+        targetLogin: targetLogin,
+        accessLevel: accessLevel,
       );
       return null;
     } on DioException catch (e) {
@@ -28,10 +28,7 @@ class SharingService {
     required String targetLogin,
   }) async {
     try {
-      await _apiClient.client.put(
-        '/cards/$serverId/owner',
-        data: {'target_login': targetLogin},
-      );
+      await _api.changeOwner(serverId: serverId, targetLogin: targetLogin);
       return null;
     } on DioException catch (e) {
       return _humanError(e);

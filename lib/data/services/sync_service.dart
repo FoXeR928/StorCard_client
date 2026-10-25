@@ -10,7 +10,7 @@ import '../local/app_database.dart';
 import '../local/database_service.dart';
 import '../models/sync_result.dart';
 import '../remote/api_client.dart';
-import '../remote/sync_api.dart';
+import '../remote/card_api.dart';
 import 'auth_service.dart';
 
 enum SyncState { idle, syncing, error, done }
@@ -18,7 +18,7 @@ enum SyncState { idle, syncing, error, done }
 class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   SyncService({
     required DatabaseService dbService,
-    required SyncApi api,
+    required CardApi api,
     required AuthService auth,
   }) : _dbService = dbService,
        _api = api,
@@ -27,7 +27,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   final DatabaseService _dbService;
-  final SyncApi _api;
+  final CardApi _api;
   final AuthService _auth;
 
   AppDatabase get _db => _dbService.db;
@@ -45,7 +45,6 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
   DateTime? get lastSyncAt => _lastSyncAt;
 
   bool _inProgress = false;
-
   DateTime? _lastFailureAt;
   bool _isBackground = false;
   bool _wasOnline = true;
@@ -96,6 +95,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     if (!_started || !_auth.isLoggedIn) return;
     _debounceTimer?.cancel();
     _debounceTimer = Timer(_debounce, () {
+      // Защита от спама запросов, если недавно упали с ошибкой
       final fail = _lastFailureAt;
       if (fail != null &&
           DateTime.now().difference(fail) < const Duration(seconds: 30)) {
@@ -105,10 +105,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     });
   }
 
-  // ------------------------------------------------------------
-  // Подписка на изменения локальной БД
-  // ------------------------------------------------------------
-
+  // Слушаем изменения в БД. Если что-то стало "грязным" — запускаем синк.
   void _subscribeToDirty() {
     _dirtySub?.cancel();
     _dirtySub = _db.select(_db.cardsTable).watch().listen((_) async {
@@ -172,10 +169,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  // ------------------------------------------------------------
-  // Полный цикл
-  // ------------------------------------------------------------
-
+  /// Полный цикл: Push (создание/обновление) -> Push (удаление) -> Pull.
   Future<SyncResult> sync() async {
     if (_inProgress) return const SyncResult(pushed: 0, pulled: 0, deleted: 0);
     if (!_auth.isLoggedIn) {
@@ -194,9 +188,11 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
       final pushed = await _push();
       final deleted = await _pushDeletions();
       final pulled = await _pull();
+
       _lastSyncAt = DateTime.now();
       _lastFailureAt = null;
       _state = SyncState.done;
+
       return SyncResult(pushed: pushed, pulled: pulled, deleted: deleted);
     } on UnauthorizedException {
       _lastError = 'Сессия истекла. Войдите снова.';
@@ -219,9 +215,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  // ------------------------------------------------------------
-  // PUSH — только карты текущего пользователя
-  // ------------------------------------------------------------
+  // --- PUSH ---
 
   Future<int> _push() async {
     final owner = _auth.username;
@@ -241,12 +235,15 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     for (final card in dirty) {
       try {
         if (card.serverId == null) {
+          // Создание новой карты
           final created = await _api.createCard(
             name: card.name,
             barcode: card.barcode,
             about: card.about,
           );
           String? newId = created?.id;
+
+          // Если сервер не вернул ID, ищем по штрихкоду
           if (newId == null || newId.isEmpty) {
             final all = await _api.getCards();
             newId = all
@@ -254,10 +251,12 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
                 .map((c) => c.id)
                 .firstOrNull;
           }
+
           if (newId != null && newId.isNotEmpty) {
             await _writeLocal(card, serverId: newId, dirty: false);
           }
         } else {
+          // Обновление существующей
           final updated = await _api.updateCard(
             serverId: card.serverId!,
             name: card.name,
@@ -275,9 +274,13 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
       } on DioException catch (e) {
         final code = e.response?.statusCode;
         if (code == 404) {
-          await _hardDeleteLocal(card.id);
+          await _hardDeleteLocal(card.id); // Карта удалена на сервере
         } else if (code == 403) {
-          await _writeLocal(card, serverId: null, dirty: true);
+          await _writeLocal(
+            card,
+            serverId: null,
+            dirty: true,
+          ); // Отвязываем и создадим заново
         } else {
           rethrow;
         }
@@ -300,7 +303,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     var count = 0;
     for (final card in toDelete) {
       if (card.serverId == null) {
-        await _hardDeleteLocal(card.id);
+        await _hardDeleteLocal(card.id); // Локальная карта, удаляем сразу
         count++;
         continue;
       }
@@ -311,7 +314,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
       } on DioException catch (e) {
         final code = e.response?.statusCode;
         if (code == 404 || code == 403) {
-          await _hardDeleteLocal(card.id);
+          await _hardDeleteLocal(card.id); // Уже удалена или нет прав
           count++;
         } else {
           rethrow;
@@ -321,9 +324,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     return count;
   }
 
-  // ------------------------------------------------------------
-  // PULL — карты с сервера, привязанные к текущему пользователю
-  // ------------------------------------------------------------
+  // --- PULL ---
 
   Future<int> _pull() async {
     final owner = _auth.username;
@@ -334,14 +335,14 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
 
     var count = 0;
     for (final r in remote) {
-      // 1. Ищем по serverId среди карт текущего владельца
+      // Ищем по serverId
       var local =
           await (_db.select(_db.cardsTable)..where(
                 (t) => t.serverId.equals(r.id) & t.ownerLogin.equals(owner),
               ))
               .getSingleOrNull();
 
-      // 2. Fallback по barcode среди карт текущего владельца
+      // Если не нашли, ищем по barcode
       if (local == null && r.barcode.isNotEmpty) {
         local =
             await (_db.select(_db.cardsTable)..where(
@@ -352,6 +353,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
       }
 
       if (local == null) {
+        // Создаем новую локальную запись
         await _db
             .into(_db.cardsTable)
             .insert(
@@ -370,11 +372,13 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
         count++;
       } else {
         final existing = local;
+        // Привязываем serverId, если его не было
         if (existing.serverId == null) {
           await (_db.update(_db.cardsTable)
                 ..where((t) => t.id.equals(existing.id)))
               .write(CardsTableCompanion(serverId: Value(r.id)));
         }
+        // Пропускаем, если локально есть несинхронизированные изменения
         if (existing.isDirty || existing.pendingDelete) continue;
 
         final imageValue = r.image != null
@@ -389,7 +393,7 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
             name: Value(r.name),
             about: Value(r.about),
             barcode: Value(r.barcode),
-            image: Value(r.image),
+            image: imageValue,
             updatedAt: Value(DateTime.now()),
           ),
         );
@@ -398,10 +402,6 @@ class SyncService extends ChangeNotifier with WidgetsBindingObserver {
     }
     return count;
   }
-
-  // ------------------------------------------------------------
-  // Вспомогательные
-  // ------------------------------------------------------------
 
   Future<void> _writeLocal(
     Cards card, {

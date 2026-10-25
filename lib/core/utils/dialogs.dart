@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Универсальный confirm-диалог. Возвращает true/false.
-/// Заменяет ~10 копий одного и того же AlertDialog в проекте.
 Future<bool> confirmDialog(
   BuildContext context, {
   required String title,
@@ -35,7 +33,6 @@ Future<bool> confirmDialog(
   return result ?? false;
 }
 
-/// Диалог ввода строки (пароль, URL, логин для подтверждения и т.п.).
 Future<String?> promptDialog(
   BuildContext context, {
   required String title,
@@ -44,6 +41,7 @@ Future<String?> promptDialog(
   String? initial,
   String confirmLabel = 'OK',
   bool obscure = false,
+  int maxLines = 1,
   TextInputType? keyboardType,
   String? Function(String?)? validator,
 }) {
@@ -61,6 +59,7 @@ Future<String?> promptDialog(
           obscureText: obscure,
           autofocus: true,
           keyboardType: keyboardType,
+          maxLines: maxLines,
           decoration: InputDecoration(labelText: label, hintText: hint),
           validator: validator,
         ),
@@ -83,7 +82,6 @@ Future<String?> promptDialog(
   ).whenComplete(ctrl.dispose);
 }
 
-/// Короткий SnackBar. `error: true` → красный фон.
 void showSnack(BuildContext context, String message, {bool error = false}) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()

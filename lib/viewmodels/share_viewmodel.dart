@@ -7,11 +7,14 @@ import '../data/services/sharing_service.dart';
 
 class ShareViewModel extends ChangeNotifier {
   ShareViewModel({
-    required this._auth,
+    required AuthService auth,
     required AdminService admin,
-    required this._sharing,
-    required this._directory,
-  }) : _admin = admin;
+    required SharingService sharing,
+    required RecipientDirectory directory,
+  }) : _auth = auth,
+       _admin = admin,
+       _sharing = sharing,
+       _directory = directory;
 
   final AuthService _auth;
   final AdminService _admin;
@@ -27,12 +30,12 @@ class ShareViewModel extends ChangeNotifier {
   bool get busy => _busy;
   bool get loadingUsers => _loadingUsers;
   String? get error => _error;
-  bool get isAdmin => _auth.isAdmin;
 
+  /// Список логинов для автодополнения: недавние + все пользователи сервера.
   List<String> candidates() {
     final set = <String>{..._directory.recent};
-    if (_auth.isAdmin) set.addAll(_admin.users.map((u) => u.login));
-    set.remove(_auth.username);
+    set.addAll(_admin.users.map((u) => u.login));
+    set.remove(_auth.username); // Исключаем себя
     return set.toList();
   }
 
@@ -43,47 +46,51 @@ class ShareViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loadUsersIfAdmin() async {
-    if (!_auth.isAdmin || _admin.users.isNotEmpty) return;
+  /// Первичная загрузка справочника при открытии шторки.
+  Future<void> loadDirectory() async {
+    if (!_auth.isLoggedIn || _admin.users.isNotEmpty) return;
     _loadingUsers = true;
     notifyListeners();
-    await _admin.loadUsers();
+
+    await _admin.loadDirectory();
+
     _loadingUsers = false;
     notifyListeners();
   }
 
-  Future<void> refreshUsers() async {
-    if (!_auth.isAdmin) {
-      _error = 'Список доступен только администраторам';
-      notifyListeners();
-      return;
-    }
+  /// Принудительное обновление справочника по кнопке.
+  Future<void> refreshDirectory() async {
     _loadingUsers = true;
     _error = null;
     notifyListeners();
-    await _admin.loadUsers();
+
+    await _admin.loadDirectory();
+
     _loadingUsers = false;
     notifyListeners();
   }
 
-  /// null = успех. Иначе текст ошибки.
+  /// Выдача прав (viewer / editor).
+  /// Возвращает null при успехе, или текст ошибки.
   Future<String?> share({
     required String serverId,
     required String targetLogin,
   }) async {
-    if (targetLogin.trim().isEmpty) return 'Укажите логин';
+    final login = targetLogin.trim();
+    if (login.isEmpty) return 'Укажите логин';
+
     _busy = true;
     _error = null;
     notifyListeners();
 
     final err = await _sharing.share(
       serverId: serverId,
-      targetLogin: targetLogin.trim(),
+      targetLogin: login,
       accessLevel: _accessLevel,
     );
 
     if (err == null) {
-      await _directory.remember(targetLogin.trim());
+      await _directory.remember(login); // Запоминаем для будущих подсказок
     } else {
       _error = err;
       _busy = false;
@@ -92,22 +99,26 @@ class ShareViewModel extends ChangeNotifier {
     return err;
   }
 
+  /// Передача прав владельца.
+  /// Возвращает null при успехе, или текст ошибки.
   Future<String?> transferOwnership({
     required String serverId,
     required String targetLogin,
   }) async {
-    if (targetLogin.trim().isEmpty) return 'Укажите логин';
+    final login = targetLogin.trim();
+    if (login.isEmpty) return 'Укажите логин';
+
     _busy = true;
     _error = null;
     notifyListeners();
 
     final err = await _sharing.changeOwner(
       serverId: serverId,
-      targetLogin: targetLogin.trim(),
+      targetLogin: login,
     );
 
     if (err == null) {
-      await _directory.remember(targetLogin.trim());
+      await _directory.remember(login);
     } else {
       _error = err;
       _busy = false;

@@ -10,12 +10,14 @@ class BarcodeView extends StatelessWidget {
     required this.data,
     this.qrSize = 240,
     this.barcodeHeight = 120,
+    this.width, // <-- ДОБАВЛЕНО
   });
 
   final String codeType;
   final String data;
   final double qrSize;
   final double barcodeHeight;
+  final double? width;
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +25,7 @@ class BarcodeView extends StatelessWidget {
     return BarcodeWidget(
       barcode: barcodeFromCodeType(codeType),
       data: data,
-      width: isQr ? qrSize : double.infinity,
+      width: width ?? (isQr ? qrSize : double.infinity),
       height: isQr ? qrSize : barcodeHeight,
       drawText: false,
       errorBuilder: (context, error) => Container(

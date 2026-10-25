@@ -4,17 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:screen_brightness/screen_brightness.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
-import '../core/utils/barcode_utils.dart';
-import '../data/services/image_service.dart';
-import '../data/services/sync_service.dart';
-import '../viewmodels/cards_viewmodel.dart';
+import '../../core/utils/dialogs.dart';
+import '../../data/services/auth_service.dart';
+import '../../viewmodels/cards_viewmodel.dart';
+import '../widgets/card_code_view.dart';
+import '../widgets/card_image_view.dart';
+import '../widgets/fullscreen_barcode.dart';
+import '../widgets/share_sheet.dart';
 import 'card_editor_screen.dart';
-import 'widgets/barcode_view.dart';
-import 'widgets/card_image.dart';
-import 'widgets/share_sheet.dart';
 
 class CardViewScreen extends StatefulWidget {
   const CardViewScreen({super.key, required this.cardId});
@@ -31,13 +30,11 @@ class _CardViewScreenState extends State<CardViewScreen> {
   void initState() {
     super.initState();
     WakelockPlus.enable();
-    ScreenBrightness().setScreenBrightness(1.0);
   }
 
   @override
   void dispose() {
     WakelockPlus.disable();
-    ScreenBrightness().resetScreenBrightness();
     _pageCtrl?.dispose();
     super.dispose();
   }
@@ -45,9 +42,9 @@ class _CardViewScreenState extends State<CardViewScreen> {
   @override
   Widget build(BuildContext context) {
     final cards = context.watch<CardsViewModel>().cards;
-    if (cards.isEmpty) {
+    if (cards.isEmpty)
       return const Scaffold(body: Center(child: Text('Нет карт')));
-    }
+
     var initialIndex = cards.indexWhere((c) => c.id == widget.cardId);
     if (initialIndex < 0) initialIndex = 0;
     _pageCtrl ??= PageController(initialPage: initialIndex);
@@ -68,9 +65,10 @@ class _CardPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final vm = context.watch<CardsViewModel>();
     final card = vm.cards.firstWhere((c) => c.id == cardId);
+    final isAdmin = context.watch<AuthService>().isAdmin;
 
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: Text(card.name),
         actions: [
@@ -87,49 +85,73 @@ class _CardPage extends StatelessWidget {
               ),
             ),
           ),
+          if (isAdmin)
+            IconButton(
+              icon: const Icon(Icons.delete_forever, color: Colors.red),
+              tooltip: 'Удалить с сервера (Админ)',
+              onPressed: () => _adminHardDelete(context, card.serverId),
+            ),
         ],
       ),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (card.image?.isNotEmpty == true) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: CardImage(raw: card.image!),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                _CodeCard(barcode: card.barcode, codeType: card.codeType),
-                if (card.about?.isNotEmpty == true) ...[
-                  const SizedBox(height: 24),
-                  Text(
-                    card.about!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 15),
-                  ),
-                ],
-                const SizedBox(height: 32),
-                OutlinedButton.icon(
-                  onPressed: () => _copyCode(context, card.barcode),
-                  icon: const Icon(Icons.copy),
-                  label: const Text('Скопировать код'),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () => _changeImage(context, card.serverId),
-                  icon: const Icon(Icons.image_outlined),
-                  label: Text(
-                    card.image?.isEmpty ?? true
-                        ? 'Добавить картинку'
-                        : 'Заменить картинку',
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => FullscreenBarcode(
+                      name: card.name,
+                      barcode: card.barcode,
+                      codeType: card.codeType,
+                    ),
                   ),
                 ),
+                child: CardCodeView(
+                  barcode: card.barcode,
+                  codeType: card.codeType,
+                ),
+              ),
+              const SizedBox(height: 20),
+              if (card.image?.isNotEmpty == true) ...[
+                CardImageView(raw: card.image!),
+                const SizedBox(height: 16),
               ],
-            ),
+              if (card.about?.isNotEmpty == true) ...[
+                Text(
+                  card.about!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _copyCode(context, card.barcode),
+                      icon: const Icon(Icons.copy),
+                      label: const Text('Копировать'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _changeImage(context, card.serverId),
+                      icon: const Icon(Icons.image_outlined),
+                      label: Text(
+                        card.image?.isEmpty ?? true ? 'Фото' : 'Заменить',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -168,9 +190,26 @@ class _CardPage extends StatelessWidget {
     );
   }
 
-  String _name(BuildContext context) {
-    final vm = context.read<CardsViewModel>();
-    return vm.cards.firstWhere((c) => c.id == cardId).name;
+  Future<void> _adminHardDelete(BuildContext context, String? serverId) async {
+    if (serverId == null) return;
+    final ok = await confirmDialog(
+      context,
+      title: 'Полное удаление?',
+      content: 'Карта будет стёрта с сервера для всех пользователей.',
+      confirmLabel: 'Удалить',
+      destructive: true,
+    );
+    if (!ok || !context.mounted) return;
+
+    final error = await context.read<CardsViewModel>().adminHardDelete(
+      serverId,
+    );
+    if (!context.mounted) return;
+    if (error != null) {
+      showSnack(context, error, error: true);
+    } else {
+      Navigator.pop(context);
+    }
   }
 
   Future<void> _changeImage(BuildContext context, String? serverId) async {
@@ -203,78 +242,28 @@ class _CardPage extends StatelessWidget {
     );
     if (source == null || !context.mounted) return;
 
-    final imageService = context.read<ImageService>();
-    final sync = context.read<SyncService>();
+    final vm = context.read<CardsViewModel>();
     final messenger = ScaffoldMessenger.of(context);
 
-    final File? file = source == ImageSource.gallery
-        ? await imageService.pickFromGallery()
-        : await imageService.takePhoto();
-    if (file == null) return;
+    final picker = ImagePicker();
+    final XFile? xfile = await picker.pickImage(
+      source: source,
+      imageQuality: 80,
+      maxWidth: 1200,
+    );
+    if (xfile == null) return;
+    final file = File(xfile.path);
 
     messenger.showSnackBar(const SnackBar(content: Text('Загрузка картинки…')));
-    final result = await imageService.upload(serverId: serverId, file: file);
+    final error = await vm.uploadImage(serverId, file);
     messenger.hideCurrentSnackBar();
 
-    if (result == null ||
-        result.startsWith('Ошибка') ||
-        result.startsWith('Недостаточно') ||
-        result.startsWith('Карта не')) {
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+    } else {
       messenger.showSnackBar(
-        SnackBar(content: Text(result ?? 'Неизвестная ошибка')),
+        const SnackBar(content: Text('Картинка обновлена')),
       );
-      return;
     }
-
-    await sync.sync();
-    messenger.showSnackBar(const SnackBar(content: Text('Картинка обновлена')));
-  }
-}
-
-class _CodeCard extends StatelessWidget {
-  const _CodeCard({required this.barcode, required this.codeType});
-  final String barcode;
-  final String codeType;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          BarcodeView(codeType: codeType, data: barcode),
-          const SizedBox(height: 20),
-          Text(
-            codeTypeLabel(codeType),
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 13,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            barcode,
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.5,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

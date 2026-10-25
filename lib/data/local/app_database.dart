@@ -15,6 +15,7 @@ class CardsTable extends Table {
   /// Логин владельца. null = карта создана в offline-режиме, ещё никому не принадлежит.
   TextColumn get ownerLogin => text().nullable()();
 
+  BoolColumn get isFavorite => boolean().withDefault(const Constant(false))();
   BoolColumn get isDirty => boolean().withDefault(const Constant(true))();
   BoolColumn get pendingDelete =>
       boolean().withDefault(const Constant(false))();
@@ -30,7 +31,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -38,6 +39,9 @@ class AppDatabase extends _$AppDatabase {
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.addColumn(cardsTable, cardsTable.ownerLogin);
+      }
+      if (from < 3) {
+        await m.addColumn(cardsTable, cardsTable.isFavorite);
       }
     },
   );

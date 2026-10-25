@@ -14,17 +14,6 @@ class AdminApi {
         .toList();
   }
 
-  Future<String?> checkStatus() async {
-    final res = await _apiClient.client.get('/status');
-    final data = res.data;
-    if (data == null) return null;
-    if (data is String) return data;
-    if (data is Map) {
-      return (data['status'] ?? data['message'] ?? data.toString()).toString();
-    }
-    return data.toString();
-  }
-
   Future<void> registerUser({
     required String login,
     required String userName,
@@ -43,16 +32,6 @@ class AdminApi {
     await _apiClient.client.patch(
       '/users/role',
       data: {'login': login, 'is_admin': isAdmin},
-    );
-  }
-
-  Future<void> updatePassword({
-    required String login,
-    required String password,
-  }) async {
-    await _apiClient.client.patch(
-      '/users/password',
-      data: {'login': login, 'password': password},
     );
   }
 
@@ -77,5 +56,13 @@ class AdminApi {
       }
     }
     return const [];
+  }
+
+  Future<List<Map<String, dynamic>>> getUsersForMigration() async {
+    final res = await _apiClient.client.get('/users/export');
+    if (res.data is List) {
+      return (res.data as List).cast<Map<String, dynamic>>();
+    }
+    return [];
   }
 }

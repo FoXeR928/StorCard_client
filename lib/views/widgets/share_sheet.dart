@@ -10,7 +10,6 @@ import '../../viewmodels/share_viewmodel.dart';
 
 class ShareSheet extends StatefulWidget {
   const ShareSheet({super.key, required this.serverId, required this.cardName});
-
   final String serverId;
   final String cardName;
 
@@ -21,7 +20,6 @@ class ShareSheet extends StatefulWidget {
 class _ShareSheetState extends State<ShareSheet> {
   final _loginCtrl = TextEditingController();
   final _focusNode = FocusNode();
-
   ShareViewModel? _vm;
 
   @override
@@ -32,7 +30,7 @@ class _ShareSheetState extends State<ShareSheet> {
       admin: context.read<AdminService>(),
       sharing: context.read<SharingService>(),
       directory: context.read<RecipientDirectory>(),
-    )..loadUsersIfAdmin();
+    )..loadDirectory();
   }
 
   @override
@@ -59,14 +57,12 @@ class _ShareSheetState extends State<ShareSheet> {
   Future<void> _transferOwnership() async {
     final login = _loginCtrl.text.trim();
     if (login.isEmpty) return;
-
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Передать владение?'),
         content: Text(
-          'Карта «${widget.cardName}» станет собственностью $login. '
-          'Вы потеряете права владельца.',
+          'Карта «${widget.cardName}» станет собственностью $login. Вы потеряете права владельца.',
         ),
         actions: [
           TextButton(
@@ -81,7 +77,6 @@ class _ShareSheetState extends State<ShareSheet> {
       ),
     );
     if (confirmed != true || !mounted) return;
-
     final err = await _vm!.transferOwnership(
       serverId: widget.serverId,
       targetLogin: login,
@@ -123,9 +118,8 @@ class _ShareSheetState extends State<ShareSheet> {
                 focusNode: _focusNode,
                 candidates: candidates,
                 isRecent: vm.isRecent,
-                isAdmin: vm.isAdmin,
                 loadingUsers: vm.loadingUsers,
-                onRefresh: vm.refreshUsers,
+                onRefresh: vm.refreshDirectory,
               )
             else
               TextField(
@@ -134,24 +128,12 @@ class _ShareSheetState extends State<ShareSheet> {
                 decoration: InputDecoration(
                   labelText: 'Логин пользователя',
                   prefixIcon: const Icon(Icons.person_outline),
-                  suffixIcon: vm.isAdmin
-                      ? IconButton(
-                          icon: const Icon(Icons.refresh),
-                          onPressed: vm.loadingUsers ? null : vm.refreshUsers,
-                        )
-                      : null,
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: vm.loadingUsers ? null : vm.refreshDirectory,
+                  ),
                 ),
               ),
-            if (candidates.isEmpty && !vm.isAdmin) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Полный список пользователей доступен только администратору. '
-                'Введите логин получателя вручную — он запомнится для следующих раз.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
             const SizedBox(height: 12),
             SegmentedButton<String>(
               segments: const [
@@ -207,7 +189,6 @@ class _AutocompleteField extends StatelessWidget {
     required this.focusNode,
     required this.candidates,
     required this.isRecent,
-    required this.isAdmin,
     required this.loadingUsers,
     required this.onRefresh,
   });
@@ -216,7 +197,6 @@ class _AutocompleteField extends StatelessWidget {
   final FocusNode focusNode;
   final List<String> candidates;
   final bool Function(String) isRecent;
-  final bool isAdmin;
   final bool loadingUsers;
   final VoidCallback onRefresh;
 
@@ -240,23 +220,19 @@ class _AutocompleteField extends StatelessWidget {
         autocorrect: false,
         decoration: InputDecoration(
           labelText: 'Логин пользователя',
-          hintText: isAdmin
-              ? 'Начните вводить или выберите из списка'
-              : 'Введите логин получателя',
+          hintText: 'Начните вводить или выберите из списка',
           prefixIcon: const Icon(Icons.person_outline),
-          suffixIcon: isAdmin
-              ? IconButton(
-                  tooltip: 'Обновить список',
-                  icon: loadingUsers
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.refresh),
-                  onPressed: loadingUsers ? null : onRefresh,
-                )
-              : null,
+          suffixIcon: IconButton(
+            tooltip: 'Обновить список',
+            icon: loadingUsers
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+            onPressed: loadingUsers ? null : onRefresh,
+          ),
         ),
       ),
       optionsViewBuilder: (ctx, onSelected, options) => Align(

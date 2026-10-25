@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../core/utils/dialogs.dart';
-import '../data/local/app_database.dart';
-import '../data/models/scan_result.dart';
-import '../data/services/auth_service.dart';
-import '../data/services/sync_service.dart';
-import '../viewmodels/cards_viewmodel.dart';
+import '../../core/utils/dialogs.dart';
+import '../../data/local/app_database.dart';
+import '../../data/models/scan_result.dart';
+import '../../data/services/auth_service.dart';
+import '../../data/services/sync_service.dart';
+import '../../viewmodels/cards_viewmodel.dart';
+import '../widgets/account_sheet.dart';
+import '../widgets/card_empty_states.dart'; // <-- Вынесенный виджет
+import '../widgets/card_grid_tile.dart';
 import 'card_editor_screen.dart';
 import 'card_view_screen.dart';
 import 'scanner_screen.dart';
-import 'widgets/account_sheet.dart';
-import 'widgets/card_grid_tile.dart';
 
 class CardsScreen extends StatefulWidget {
   const CardsScreen({super.key});
@@ -125,6 +126,29 @@ class _CardsScreenState extends State<CardsScreen> {
               icon: const Icon(Icons.search),
               onPressed: () => context.read<CardsViewModel>().setQuery(' '),
             ),
+            PopupMenuButton<CardSort>(
+              icon: const Icon(Icons.sort),
+              tooltip: 'Сортировка',
+              onSelected: (s) => context.read<CardsViewModel>().setSort(s),
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: CardSort.favoriteFirst,
+                  child: Text('Сначала избранные'),
+                ),
+                PopupMenuItem(
+                  value: CardSort.nameAsc,
+                  child: Text('По алфавиту (А-Я)'),
+                ),
+                PopupMenuItem(
+                  value: CardSort.nameDesc,
+                  child: Text('По алфавиту (Я-А)'),
+                ),
+                PopupMenuItem(
+                  value: CardSort.newest,
+                  child: Text('Сначала новые'),
+                ),
+              ],
+            ),
             const AccountButton(),
           ],
         ],
@@ -172,15 +196,12 @@ class _Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (vm.loading) return const Center(child: CircularProgressIndicator());
-    if (vm.error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text('Ошибка: ${vm.error}', textAlign: TextAlign.center),
-        ),
-      );
+    if (vm.error != null) return Center(child: Text('Ошибка: ${vm.error}'));
+
+    if (vm.cards.isEmpty) {
+      if (vm.query.isNotEmpty) return CardSearchEmptyState(query: vm.query);
+      return const CardEmptyState();
     }
-    if (vm.cards.isEmpty) return const _EmptyState();
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -207,9 +228,47 @@ class _Body extends StatelessWidget {
                 builder: (_) => CardViewScreen(cardId: card.id),
               ),
             ),
-            onLongPress: () => _confirmDelete(context, card),
+            onLongPress: () => _showActions(context, card),
           );
         },
+      ),
+    );
+  }
+
+  void _showActions(BuildContext context, Cards card) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(card.isFavorite ? Icons.star : Icons.star_border),
+              title: Text(
+                card.isFavorite ? 'Убрать из избранного' : 'В избранное',
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                context.read<CardsViewModel>().toggleFavorite(
+                  card.id,
+                  !card.isFavorite,
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text(
+                'Удалить карту',
+                style: TextStyle(color: Colors.red),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _confirmDelete(context, card);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -222,43 +281,8 @@ class _Body extends StatelessWidget {
       confirmLabel: 'Удалить',
       destructive: true,
     );
-    if (ok && context.mounted) {
+    if (ok && context.mounted)
       await context.read<CardsViewModel>().deleteCard(card.id);
-    }
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.credit_card_off_outlined,
-              size: 72,
-              color: theme.colorScheme.outline,
-            ),
-            const SizedBox(height: 16),
-            Text('Пока нет ни одной карты', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              'Нажми «+», чтобы добавить первую карту',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../core/utils/dialogs.dart';
-import '../data/local/app_database.dart';
-import '../viewmodels/cards_viewmodel.dart';
-import '../data/models/scan_result.dart';
+import '../../core/utils/dialogs.dart';
+import '../../data/local/app_database.dart';
+import '../../viewmodels/cards_viewmodel.dart';
+import '../../data/models/scan_result.dart';
 import 'scanner_screen.dart';
 
 class CardEditorScreen extends StatefulWidget {

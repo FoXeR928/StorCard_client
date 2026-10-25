@@ -62,34 +62,19 @@ class _AdminUserEditScreenState extends State<AdminUserEditScreen> {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                if (_isMe)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Chip(
-                      label: const Text('Это вы'),
-                      backgroundColor: theme.colorScheme.primaryContainer,
-                      labelStyle: TextStyle(
-                        color: theme.colorScheme.onPrimaryContainer,
-                        fontSize: 12,
-                      ),
-                      side: BorderSide.none,
-                    ),
-                  ),
               ],
             ),
           ),
           const SizedBox(height: 32),
-          _ReadonlyTile(
-            icon: Icons.badge_outlined,
-            title: 'Логин',
-            subtitle: widget.user.login,
-            hint: 'Логин нельзя изменить после создания',
+          ListTile(
+            leading: const Icon(Icons.badge_outlined),
+            title: const Text('Логин'),
+            subtitle: Text(widget.user.login),
           ),
-          _ReadonlyTile(
-            icon: Icons.person_outline,
-            title: 'Имя',
-            subtitle: widget.user.userName,
-            hint: 'Сервер не поддерживает смену имени',
+          ListTile(
+            leading: const Icon(Icons.person_outline),
+            title: const Text('Имя'),
+            subtitle: Text(widget.user.userName),
           ),
           const Divider(),
           SwitchListTile(
@@ -108,16 +93,6 @@ class _AdminUserEditScreenState extends State<AdminUserEditScreen> {
                     _dirty = true;
                   }),
           ),
-          if (_isMe)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Text(
-                'Нельзя менять свою роль',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.lock_outline),
@@ -138,18 +113,6 @@ class _AdminUserEditScreenState extends State<AdminUserEditScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
               ),
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'Себя удалить нельзя. Выйдите из аккаунта и удалите '
-                'себя с другой учётной записи администратора.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
             ),
         ],
       ),
@@ -167,65 +130,26 @@ class _AdminUserEditScreenState extends State<AdminUserEditScreen> {
     if (!mounted) return;
 
     if (ok) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            _isAdmin ? 'Назначен администратором' : 'Снята роль администратора',
-          ),
-        ),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('Роль обновлена')));
       navigator.pop();
     } else {
       setState(() => _busy = false);
       messenger.showSnackBar(
-        SnackBar(
-          content: Text('Ошибка: ${admin.lastError ?? "неизвестно"}'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
+        SnackBar(content: Text('Ошибка: ${admin.lastError}')),
       );
     }
   }
 
   Future<void> _changePassword() async {
     final ctrl = TextEditingController();
-    final confirmCtrl = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: Text('Новый пароль для ${widget.user.login}'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: ctrl,
-                obscureText: true,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Пароль',
-                  helperText: 'Минимум 6 символов',
-                ),
-                validator: (v) {
-                  if (v == null || v.isEmpty) return 'Введите пароль';
-                  if (v.length < 6) return 'Минимум 6 символов';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: confirmCtrl,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Повторите пароль',
-                ),
-                validator: (v) =>
-                    (v != ctrl.text) ? 'Пароли не совпадают' : null,
-              ),
-            ],
-          ),
+        content: TextField(
+          controller: ctrl,
+          obscureText: true,
+          decoration: const InputDecoration(labelText: 'Новый пароль'),
         ),
         actions: [
           TextButton(
@@ -233,39 +157,31 @@ class _AdminUserEditScreenState extends State<AdminUserEditScreen> {
             child: const Text('Отмена'),
           ),
           TextButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(context, true);
-              }
-            },
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Сменить'),
           ),
         ],
       ),
     );
 
-    if (confirmed != true || !mounted) {
-      ctrl.dispose();
-      confirmCtrl.dispose();
-      return;
+    if (confirmed == true && ctrl.text.isNotEmpty && mounted) {
+      final admin = context.read<AdminService>();
+      final messenger = ScaffoldMessenger.of(context);
+      final ok = await admin.changePassword(
+        login: widget.user.login,
+        password: ctrl.text,
+      );
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              ok ? 'Пароль обновлён' : 'Ошибка: ${admin.lastError}',
+            ),
+          ),
+        );
+      }
     }
-
-    final admin = context.read<AdminService>();
-    final messenger = ScaffoldMessenger.of(context);
-    final ok = await admin.changePassword(
-      login: widget.user.login,
-      password: ctrl.text,
-    );
     ctrl.dispose();
-    confirmCtrl.dispose();
-    if (!mounted) return;
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          ok ? 'Пароль обновлён' : 'Ошибка: ${admin.lastError ?? "неизвестно"}',
-        ),
-      ),
-    );
   }
 
   Future<void> _delete() async {
@@ -273,10 +189,7 @@ class _AdminUserEditScreenState extends State<AdminUserEditScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: Text('Удалить ${widget.user.login}?'),
-        content: Text(
-          'Пользователь «${widget.user.userName}» и все его права '
-          'доступа к картам будут безвозвратно удалены.',
-        ),
+        content: const Text('Все данные пользователя будут удалены.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -291,46 +204,6 @@ class _AdminUserEditScreenState extends State<AdminUserEditScreen> {
     );
     if (confirmed != true || !mounted) return;
 
-    final inputCtrl = TextEditingController();
-    final doubleCheck = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Подтвердите удаление'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Введите логин «${widget.user.login}» для подтверждения:'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: inputCtrl,
-              autofocus: true,
-              autocorrect: false,
-              decoration: const InputDecoration(
-                labelText: 'Логин',
-                prefixIcon: Icon(Icons.warning_amber_outlined),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Отмена'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(
-              context,
-              inputCtrl.text.trim() == widget.user.login,
-            ),
-            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-    inputCtrl.dispose();
-    if (doubleCheck != true || !mounted) return;
-
     final admin = context.read<AdminService>();
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
@@ -344,49 +217,8 @@ class _AdminUserEditScreenState extends State<AdminUserEditScreen> {
       navigator.pop();
     } else {
       messenger.showSnackBar(
-        SnackBar(
-          content: Text('Ошибка: ${admin.lastError ?? "неизвестно"}'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
+        SnackBar(content: Text('Ошибка: ${admin.lastError}')),
       );
     }
-  }
-}
-
-class _ReadonlyTile extends StatelessWidget {
-  const _ReadonlyTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.hint,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final String? hint;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(subtitle),
-          if (hint != null)
-            Text(
-              hint!,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-        ],
-      ),
-      trailing: const Icon(Icons.lock, size: 16),
-    );
   }
 }

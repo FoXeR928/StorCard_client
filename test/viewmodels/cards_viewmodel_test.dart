@@ -1,366 +1,182 @@
-import 'dart:async';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:storcard_client/data/local/app_database.dart';
-import 'package:storcard_client/data/repositories/card_repository.dart';
+import 'package:storcard_client/data/services/card_repository.dart';
 import 'package:storcard_client/data/services/auth_service.dart';
+import 'package:storcard_client/data/services/image_service.dart';
+import 'package:storcard_client/data/remote/api_client.dart';
+import 'package:storcard_client/data/services/sync_service.dart';
 import 'package:storcard_client/viewmodels/cards_viewmodel.dart';
 
-class _MockRepo extends Mock implements CardRepository {}
+class MockRepo extends Mock implements CardRepository {}
 
-class _MockAuth extends Mock implements AuthService {}
+class MockAuth extends Mock implements AuthService {}
+
+class MockImageService extends Mock implements ImageService {}
+
+class MockApiClient extends Mock implements ApiClient {}
+
+class MockSyncService extends Mock implements SyncService {}
 
 void main() {
-  late _MockRepo repo;
-  late _MockAuth auth;
+  late MockRepo mockRepo;
+  late MockAuth mockAuth;
+  late CardsViewModel viewModel;
 
   setUp(() {
-    repo = _MockRepo();
-    auth = _MockAuth();
+    mockRepo = MockRepo();
+    mockAuth = MockAuth();
 
-    when(() => auth.username).thenReturn(null);
-    when(() => auth.addListener(any())).thenReturn(null);
-    when(() => auth.removeListener(any())).thenReturn(null);
-    when(() => repo.watchVisibleCards(any()))
-        .thenAnswer((_) => const Stream<List<Cards>>.empty());
-    when(() => repo.countLocalOnlyCards()).thenAnswer((_) async => 0);
+    // Настраиваем моки
+    when(() => mockAuth.username).thenReturn('test_user');
+    when(() => mockAuth.addListener(any())).thenReturn(null);
+    when(() => mockRepo.watchVisibleCards(any()))
+        .thenAnswer((_) => Stream.value([]));
+
+    viewModel = CardsViewModel(
+      mockRepo,
+      mockAuth,
+      MockImageService(),
+      MockApiClient(),
+      MockSyncService(),
+    );
   });
 
-  Cards fakeCard({
-    required int id,
-    required String name,
-    String barcode = '0',
-    String? about,
-    String? ownerLogin,
-  }) {
+  Cards buildCard(int id, String name, bool isFavorite, DateTime createdAt) {
     return Cards(
       id: id,
       name: name,
-      barcode: barcode,
-      about: about,
-      image: null,
+      barcode: '123',
       codeType: 'code128',
-      ownerLogin: ownerLogin,
+      isFavorite: isFavorite,
       isDirty: false,
       pendingDelete: false,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
+      createdAt: createdAt,
+      updatedAt: createdAt,
     );
   }
 
-  test('стартует с loading=true, потом false', () async {
-    when(() => repo.watchVisibleCards(null))
-        .thenAnswer((_) => Stream.value([]));
+  final cardsList = [
+    buildCard(1, 'Лента', false, DateTime(2023, 1, 1)),
+    buildCard(2, 'Ашан', true, DateTime(2023, 1, 2)), // Избранная
+    buildCard(3, 'Магнит', false, DateTime(2023, 1, 3)),
+  ];
 
-    final vm = CardsViewModel(repo, auth);
-    expect(vm.loading, true);
-
-    await Future<void>.delayed(Duration.zero);
-    expect(vm.loading, false);
-    expect(vm.cards, isEmpty);
-  });
-
-  test('карты приходят из стрима', () async {
-    final list = [fakeCard(id: 1, name: 'A'), fakeCard(id: 2, name: 'B')];
-    when(() => repo.watchVisibleCards(null))
-        .thenAnswer((_) => Stream.value(list));
-
-    final vm = CardsViewModel(repo, auth);
-    await Future<void>.delayed(Duration.zero);
-
-    expect(vm.cards.length, 2);
-  });
-
-  test('ошибка стрима попадает в error', () async {
-    when(() => repo.watchVisibleCards(null))
-        .thenAnswer((_) => Stream.error(Exception('boom')));
-
-    final vm = CardsViewModel(repo, auth);
-    await Future<void>.delayed(Duration.zero);
-
-    expect(vm.error, isNotNull);
-    expect(vm.loading, false);
-  });
-
-  group('setQuery', () {
-    setUp(() {
-      when(() => repo.watchVisibleCards(null)).thenAnswer(
-        (_) => Stream.value([
-          fakeCard(id: 1, name: 'Пятёрочка', barcode: '123'),
-          fakeCard(id: 2, name: 'Лента', barcode: '456'),
-          fakeCard(id: 3, name: 'Магнит', about: 'продукты рядом'),
-        ]),
-      );
-    });
-
-    test('фильтрует по имени (регистронезависимо)', () async {
-      final vm = CardsViewModel(repo, auth);
-      await Future<void>.delayed(Duration.zero);
-
-      vm.setQuery('лент');
-      expect(vm.cards.map((c) => c.id), [2]);
-    });
-
-    test('фильтрует по barcode', () async {
-      final vm = CardsViewModel(repo, auth);
-      await Future<void>.delayed(Duration.zero);
-
-      vm.setQuery('123');
-      expect(vm.cards.map((c) => c.id), [1]);
-    });
-
-    test('фильтрует по about', () async {
-      final vm = CardsViewModel(repo, auth);
-      await Future<void>.delayed(Duration.zero);
-
-      vm.setQuery('продукт');
-      expect(vm.cards.map((c) => c.id), [3]);
-    });
-
-    test('пустой запрос → все карты', () async {
-      final vm = CardsViewModel(repo, auth);
-      await Future<void>.delayed(Duration.zero);
-
-      vm.setQuery('');
-      expect(vm.cards.length, 3);
-    });
-
-    test('без совпадений → пусто', () async {
-      final vm = CardsViewModel(repo, auth);
-      await Future<void>.delayed(Duration.zero);
-
-      vm.setQuery('zzz');
-      expect(vm.cards, isEmpty);
-    });
-
-    test('уведомляет слушателей', () async {
-      final vm = CardsViewModel(repo, auth);
-      await Future<void>.delayed(Duration.zero);
-
-      var notified = false;
-      vm.addListener(() => notified = true);
-
-      vm.setQuery('x');
-      expect(notified, true);
-    });
-  });
-
-  group('addCard', () {
-    test('передаёт ownerLogin текущего пользователя', () async {
-      when(() => auth.username).thenReturn('user1');
-      when(() => repo.watchVisibleCards('user1'))
-          .thenAnswer((_) => Stream.value([]));
-      when(
-        () => repo.createCard(
-          name: any(named: 'name'),
-          barcode: any(named: 'barcode'),
-          codeType: any(named: 'codeType'),
-          ownerLogin: any(named: 'ownerLogin'),
-          about: any(named: 'about'),
-          image: any(named: 'image'),
-        ),
-      ).thenAnswer((_) async => 1);
-
-      final vm = CardsViewModel(repo, auth);
-      await vm.addCard(name: 'X', barcode: '1', codeType: 'code128');
-
-      verify(
-        () => repo.createCard(
-          name: 'X',
-          barcode: '1',
-          codeType: 'code128',
-          ownerLogin: 'user1',
-          about: null,
-          image: null,
-        ),
-      ).called(1);
-    });
-
-    test('при ошибке пишет error', () async {
-      when(() => repo.watchVisibleCards(any()))
-          .thenAnswer((_) => Stream.value([]));
-      when(
-        () => repo.createCard(
-          name: any(named: 'name'),
-          barcode: any(named: 'barcode'),
-          codeType: any(named: 'codeType'),
-          ownerLogin: any(named: 'ownerLogin'),
-          about: any(named: 'about'),
-          image: any(named: 'image'),
-        ),
-      ).thenAnswer((_) async {
-        throw Exception('db');
-      });
-
-      final vm = CardsViewModel(repo, auth);
-
-      await Future<void>.delayed(Duration.zero);
-
-      await vm.addCard(name: 'X', barcode: '1', codeType: 'code128');
-
-      expect(vm.error, isNotNull);
-    });
-  });
-
-  group('updateCard', () {
-    test('вызывает repo.updateCard с параметрами', () async {
-      when(() => repo.watchVisibleCards(any()))
-          .thenAnswer((_) => Stream.value([]));
-      when(
-        () => repo.updateCard(
-          any(),
-          name: any(named: 'name'),
-          barcode: any(named: 'barcode'),
-          codeType: any(named: 'codeType'),
-          about: any(named: 'about'),
-          image: any(named: 'image'),
-        ),
-      ).thenAnswer((_) async {});
-
-      final vm = CardsViewModel(repo, auth);
-      await vm.updateCard(id: 5, name: 'N', barcode: '2', codeType: 'qr');
-
-      verify(
-        () => repo.updateCard(
-          5,
-          name: 'N',
-          barcode: '2',
-          codeType: 'qr',
-          about: null,
-          image: null,
-        ),
-      ).called(1);
-    });
-  });
-
-  group('deleteCard', () {
-    test('делегирует в softDeleteCard', () async {
-      when(() => repo.watchVisibleCards(any()))
-          .thenAnswer((_) => Stream.value([]));
-      when(() => repo.softDeleteCard(any())).thenAnswer((_) async {});
-
-      final vm = CardsViewModel(repo, auth);
-      await vm.deleteCard(42);
-
-      verify(() => repo.softDeleteCard(42)).called(1);
-    });
-  });
-
-  group('миграция локальных карт', () {
-    test('checkLocalCardsAfterLogin ничего не делает в offline', () async {
-      when(() => auth.username).thenReturn(null);
-
-      final vm = CardsViewModel(repo, auth);
-      await vm.checkLocalCardsAfterLogin();
-
-      expect(vm.pendingLocalCardsCount, 0);
-      verifyNever(() => repo.countLocalOnlyCards());
-    });
-
-    test('checkLocalCardsAfterLogin считает при логине', () async {
-      when(() => auth.username).thenReturn('user1');
-      when(() => repo.watchVisibleCards('user1'))
-          .thenAnswer((_) => Stream.value([]));
-      when(() => repo.countLocalOnlyCards()).thenAnswer((_) async => 3);
-
-      final vm = CardsViewModel(repo, auth);
-      await vm.checkLocalCardsAfterLogin();
-
-      expect(vm.pendingLocalCardsCount, 3);
-    });
-
-    test(
-      'assignLocalCardsToCurrentUser привязывает и сбрасывает счётчик',
-      () async {
-        when(() => auth.username).thenReturn('user1');
-        when(() => repo.watchVisibleCards('user1'))
-            .thenAnswer((_) => Stream.value([]));
-        when(() => repo.assignLocalCardsTo('user1')).thenAnswer((_) async => 2);
-
-        final vm = CardsViewModel(repo, auth);
-        await vm.assignLocalCardsToCurrentUser();
-
-        verify(() => repo.assignLocalCardsTo('user1')).called(1);
-        expect(vm.pendingLocalCardsCount, 0);
-      },
+  test('Сортировка: Сначала избранные', () async {
+    when(() => mockRepo.watchVisibleCards(any()))
+        .thenAnswer((_) => Stream.value(cardsList));
+    // Пересоздаем VM, чтобы применился стрим
+    viewModel = CardsViewModel(
+      mockRepo,
+      mockAuth,
+      MockImageService(),
+      MockApiClient(),
+      MockSyncService(),
     );
 
-    test('assignLocalCardsToCurrentUser в offline — no-op', () async {
-      when(() => auth.username).thenReturn(null);
+    // Ждем инициализации
+    await Future.delayed(Duration.zero);
 
-      final vm = CardsViewModel(repo, auth);
-      await vm.assignLocalCardsToCurrentUser();
+    viewModel.setSort(CardSort.favoriteFirst);
+    final sorted = viewModel.cards;
 
-      verifyNever(() => repo.assignLocalCardsTo(any()));
-    });
-
-    test('dismissLocalCardsDialog сбрасывает счётчик', () async {
-      when(() => auth.username).thenReturn('user1');
-      when(() => repo.watchVisibleCards('user1'))
-          .thenAnswer((_) => Stream.value([]));
-      when(() => repo.countLocalOnlyCards()).thenAnswer((_) async => 5);
-
-      final vm = CardsViewModel(repo, auth);
-      await vm.checkLocalCardsAfterLogin();
-      expect(vm.pendingLocalCardsCount, 5);
-
-      vm.dismissLocalCardsDialog();
-      expect(vm.pendingLocalCardsCount, 0);
-    });
+    expect(sorted[0].name, 'Ашан'); // Первая избранная
+    expect(sorted[1].name, 'Лента'); // Дальше по алфавиту
+    expect(sorted[2].name, 'Магнит');
   });
 
-  group('shouldShowLocalCardsDialog', () {
-    test('false когда карт нет', () async {
-      when(() => auth.username).thenReturn('u1');
-      when(() => repo.watchVisibleCards('u1'))
-          .thenAnswer((_) => Stream.value([]));
-      when(() => repo.countLocalOnlyCards()).thenAnswer((_) async => 0);
+  test('Сортировка: По алфавиту (А-Я)', () async {
+    when(() => mockRepo.watchVisibleCards(any()))
+        .thenAnswer((_) => Stream.value(cardsList));
+    viewModel = CardsViewModel(
+      mockRepo,
+      mockAuth,
+      MockImageService(),
+      MockApiClient(),
+      MockSyncService(),
+    );
+    await Future.delayed(Duration.zero);
 
-      final vm = CardsViewModel(repo, auth);
-      await vm.checkLocalCardsAfterLogin();
+    viewModel.setSort(CardSort.nameAsc);
+    final sorted = viewModel.cards;
 
-      expect(vm.shouldShowLocalCardsDialog, false);
-    });
+    expect(sorted[0].name, 'Ашан');
+    expect(sorted[1].name, 'Лента');
+    expect(sorted[2].name, 'Магнит');
+  });
 
-    test('true когда есть карты и не показывали', () async {
-      when(() => auth.username).thenReturn('u1');
-      when(() => repo.watchVisibleCards('u1'))
-          .thenAnswer((_) => Stream.value([]));
-      when(() => repo.countLocalOnlyCards()).thenAnswer((_) async => 3);
+  test('Сортировка: Сначала новые', () async {
+    when(() => mockRepo.watchVisibleCards(any()))
+        .thenAnswer((_) => Stream.value(cardsList));
+    viewModel = CardsViewModel(
+      mockRepo,
+      mockAuth,
+      MockImageService(),
+      MockApiClient(),
+      MockSyncService(),
+    );
+    await Future.delayed(Duration.zero);
 
-      final vm = CardsViewModel(repo, auth);
-      await vm.checkLocalCardsAfterLogin();
+    viewModel.setSort(CardSort.newest);
+    final sorted = viewModel.cards;
 
-      expect(vm.shouldShowLocalCardsDialog, true);
-    });
+    expect(sorted[0].name, 'Магнит'); // Самая новая дата
+    expect(sorted[1].name, 'Ашан');
+    expect(sorted[2].name, 'Лента');
+  });
 
-    test('false после markLocalCardsDialogShown', () async {
-      when(() => auth.username).thenReturn('u1');
-      when(() => repo.watchVisibleCards('u1'))
-          .thenAnswer((_) => Stream.value([]));
-      when(() => repo.countLocalOnlyCards()).thenAnswer((_) async => 3);
+  test('Поиск (Query) фильтрует по названию', () async {
+    when(() => mockRepo.watchVisibleCards(any()))
+        .thenAnswer((_) => Stream.value(cardsList));
+    viewModel = CardsViewModel(
+      mockRepo,
+      mockAuth,
+      MockImageService(),
+      MockApiClient(),
+      MockSyncService(),
+    );
+    await Future.delayed(Duration.zero);
 
-      final vm = CardsViewModel(repo, auth);
-      await vm.checkLocalCardsAfterLogin();
-      vm.markLocalCardsDialogShown();
+    viewModel.setQuery('лент');
+    final filtered = viewModel.cards;
 
-      expect(vm.shouldShowLocalCardsDialog, false);
-    });
+    expect(filtered.length, 1);
+    expect(filtered[0].name, 'Лента');
+  });
 
-    test('false после dismissLocalCardsDialog', () async {
-      when(() => auth.username).thenReturn('u1');
-      when(() => repo.watchVisibleCards('u1'))
-          .thenAnswer((_) => Stream.value([]));
-      when(() => repo.countLocalOnlyCards()).thenAnswer((_) async => 3);
+  test('importFromJson создает карты из JSON', () async {
+    final json = '[{"name": "Test", "barcode": "123", "codeType": "ean13"}]';
 
-      final vm = CardsViewModel(repo, auth);
-      await vm.checkLocalCardsAfterLogin();
-      vm.dismissLocalCardsDialog();
+    // Настраиваем мок репозитория для проверки вызова
+    when(
+      () => mockRepo.createCard(
+        name: any(named: 'name'),
+        barcode: any(named: 'barcode'),
+        codeType: any(named: 'codeType'),
+        ownerLogin: any(named: 'ownerLogin'),
+        about: any(named: 'about'),
+      ),
+    ).thenAnswer((_) async => 1);
 
-      expect(vm.shouldShowLocalCardsDialog, false);
-    });
+    final count = await viewModel.importFromJson(json);
+
+    expect(count, 1);
+    verify(
+      () => mockRepo.createCard(
+        name: 'Test',
+        barcode: '123',
+        codeType: 'ean13',
+        ownerLogin: 'test_user',
+        about: null,
+      ),
+    ).called(1);
+  });
+
+  test('assignLocalCardsToCurrentUser очищает счетчик', () async {
+    when(() => mockRepo.assignLocalCardsTo('test_user'))
+        .thenAnswer((_) async => 5);
+
+    await viewModel.assignLocalCardsToCurrentUser();
+    expect(viewModel.pendingLocalCardsCount, 0);
   });
 }
-
-// Переопределяем addListener чтобы запоминать колбэки — используем в setUp

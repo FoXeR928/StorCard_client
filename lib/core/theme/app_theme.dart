@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 class AppTheme {
   static const _seed = Color(0xFF2E7D32);
+  static const _radius = BorderRadius.all(Radius.circular(14));
 
   /// Если передана динамическая схема от системы (Material You) —
   /// используется она. Иначе — fallback на фирменный зелёный.
@@ -16,8 +17,6 @@ class AppTheme {
   );
 
   static ThemeData _build(ColorScheme scheme) {
-    final radius = BorderRadius.circular(14);
-
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
@@ -37,43 +36,49 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.4),
-        border: OutlineInputBorder(
-          borderRadius: radius,
+        border: const OutlineInputBorder(
+          borderRadius: _radius,
           borderSide: BorderSide.none,
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: radius,
+        enabledBorder: const OutlineInputBorder(
+          borderRadius: _radius,
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: radius,
+          borderRadius: _radius,
           borderSide: BorderSide(color: scheme.primary, width: 2),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: radius),
+          shape: const RoundedRectangleBorder(borderRadius: _radius),
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: radius),
+          shape: const RoundedRectangleBorder(borderRadius: _radius),
           textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: scheme.primaryContainer,
         foregroundColor: scheme.onPrimaryContainer,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(18)),
+        ),
       ),
-      listTileTheme: ListTileThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      listTileTheme: const ListTileThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+        ),
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       ),
-      cardTheme: CardThemeData(
+      cardTheme: const CardThemeData(
         elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(16)),
+        ),
       ),
     );
   }

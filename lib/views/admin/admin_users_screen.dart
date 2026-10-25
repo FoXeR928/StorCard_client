@@ -39,7 +39,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       ),
       body: _body(admin, myLogin),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openCreate(context),
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const AdminCreateUserScreen()),
+        ),
         icon: const Icon(Icons.person_add),
         label: const Text('Добавить'),
       ),
@@ -51,7 +53,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (admin.lastError != null && admin.users.isEmpty) {
-      return _ErrorState(message: admin.lastError!, onRetry: admin.loadUsers);
+      return Center(child: Text('Ошибка: ${admin.lastError}'));
     }
     if (admin.users.isEmpty) {
       return const Center(child: Text('Нет пользователей'));
@@ -64,21 +66,15 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
         separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
         itemBuilder: (_, i) {
           final user = admin.users[i];
-          return _UserTile(user: user, isMe: user.login == myLogin);
+          return AdminUserTile(user: user, isMe: user.login == myLogin);
         },
       ),
     );
   }
-
-  void _openCreate(BuildContext context) {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const _CreateUserDialogScreen()));
-  }
 }
 
-class _UserTile extends StatelessWidget {
-  const _UserTile({required this.user, required this.isMe});
+class AdminUserTile extends StatelessWidget {
+  const AdminUserTile({super.key, required this.user, required this.isMe});
   final ServerUser user;
   final bool isMe;
 
@@ -125,45 +121,14 @@ class _UserTile extends StatelessWidget {
   }
 }
 
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message, required this.onRetry});
-  final String message;
-  final Future<void> Function() onRetry;
+class AdminCreateUserScreen extends StatefulWidget {
+  const AdminCreateUserScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 64),
-            const SizedBox(height: 16),
-            Text('Ошибка: $message', textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Повторить'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  State<AdminCreateUserScreen> createState() => _AdminCreateUserScreenState();
 }
 
-/// Диалог создания пользователя, вынесенный в отдельный виджет.
-class _CreateUserDialogScreen extends StatefulWidget {
-  const _CreateUserDialogScreen();
-
-  @override
-  State<_CreateUserDialogScreen> createState() =>
-      _CreateUserDialogScreenState();
-}
-
-class _CreateUserDialogScreenState extends State<_CreateUserDialogScreen> {
+class _AdminCreateUserScreenState extends State<AdminCreateUserScreen> {
   final _loginCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   final _passCtrl = TextEditingController();

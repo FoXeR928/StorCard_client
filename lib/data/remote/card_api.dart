@@ -1,9 +1,16 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
+
 import '../models/server_card.dart';
 import 'api_client.dart';
 
-class SyncApi {
-  SyncApi(this._apiClient);
+/// API для работы с картами (CRUD, шеринг, картинки).
+class CardApi {
+  CardApi(this._apiClient);
   final ApiClient _apiClient;
+
+  // --- Чтение ---
 
   Future<List<ServerCard>> getCards() async {
     final res = await _apiClient.client.get('/cards/');
@@ -13,6 +20,8 @@ class SyncApi {
         .where((c) => !c.isEmpty)
         .toList();
   }
+
+  // --- Создание / Обновление ---
 
   Future<ServerCard?> createCard({
     required String name,
@@ -43,9 +52,60 @@ class SyncApi {
     return _parse(res.data);
   }
 
+  // --- Удаление ---
+
   Future<void> deleteCard(String serverId) async {
     await _apiClient.client.delete('/cards/$serverId');
   }
+
+  // --- Шеринг ---
+
+  Future<void> shareCard({
+    required String serverId,
+    required String targetLogin,
+    required String accessLevel,
+  }) async {
+    await _apiClient.client.post(
+      '/cards/$serverId/share',
+      data: {'target_login': targetLogin, 'access_level': accessLevel},
+    );
+  }
+
+  Future<void> changeOwner({
+    required String serverId,
+    required String targetLogin,
+  }) async {
+    await _apiClient.client.put(
+      '/cards/$serverId/owner',
+      data: {'target_login': targetLogin},
+    );
+  }
+
+  // --- Картинки ---
+
+  Future<String?> uploadImage({
+    required String serverId,
+    required File file,
+  }) async {
+    final form = FormData.fromMap({
+      'file': await MultipartFile.fromFile(
+        file.path,
+        filename: file.uri.pathSegments.last,
+      ),
+    });
+    final res = await _apiClient.client.put(
+      '/cards/$serverId/image',
+      data: form,
+    );
+    final data = res.data;
+
+    // Сервер может вернуть строку или объект {"image": "..."}
+    if (data is String && data.isNotEmpty) return data;
+    if (data is Map && data['image'] is String) return data['image'] as String;
+    return '';
+  }
+
+  // --- Парсеры ---
 
   ServerCard? _parse(dynamic data) {
     if (data is Map<String, dynamic>) {

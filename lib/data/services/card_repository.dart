@@ -8,9 +8,8 @@ class CardRepository {
   final DatabaseService _service;
   AppDatabase get _db => _service.db;
 
-  /// Карты, видимые для указанного владельца.
-  /// - ownerLogin == null  → карты offline-сессии (owner_login IS NULL)
-  /// - ownerLogin != null  → карты этого пользователя
+  /// Стрим карт, принадлежащих конкретному юзеру.
+  /// Если ownerLogin == null, отдаёт локальные карты (офлайн-режим).
   Stream<List<Cards>> watchVisibleCards(String? ownerLogin) {
     final q = _db.select(_db.cardsTable)
       ..where((t) => t.pendingDelete.equals(false));
@@ -67,12 +66,13 @@ class CardRepository {
         codeType: Value(codeType),
         about: Value(about),
         image: Value(image),
-        isDirty: const Value(true),
+        isDirty: const Value(true), // Помечаем для синхронизации
         updatedAt: Value(DateTime.now()),
       ),
     );
   }
 
+  /// Мягкое удаление — карта исчезает из UI, но остается в БД с флагом pendingDelete.
   Future<void> softDeleteCard(int id) async {
     await (_db.update(_db.cardsTable)..where((t) => t.id.equals(id))).write(
       CardsTableCompanion(
@@ -83,9 +83,7 @@ class CardRepository {
     );
   }
 
-  // ---------- Миграция локальных карт ----------
-
-  /// Сколько карт без владельца (созданных offline).
+  /// Считает карты, созданные до входа в аккаунт.
   Future<int> countLocalOnlyCards() async {
     final q = _db.selectOnly(_db.cardsTable)
       ..addColumns([_db.cardsTable.id.count()])
@@ -97,7 +95,7 @@ class CardRepository {
     return row.read(_db.cardsTable.id.count()) ?? 0;
   }
 
-  /// Привязать все локальные карты к указанному пользователю.
+  /// Привязывает все офлайн-карты к текущему юзеру при входе.
   Future<int> assignLocalCardsTo(String ownerLogin) async {
     return (_db.update(_db.cardsTable)
           ..where((t) => t.ownerLogin.isNull() & t.pendingDelete.equals(false)))
@@ -108,5 +106,15 @@ class CardRepository {
             updatedAt: Value(DateTime.now()),
           ),
         );
+  }
+
+  /// Переключает статус "Избранное".
+  Future<void> toggleFavorite(int id, bool isFavorite) async {
+    await (_db.update(_db.cardsTable)..where((t) => t.id.equals(id))).write(
+      CardsTableCompanion(
+        isFavorite: Value(isFavorite),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
   }
 }

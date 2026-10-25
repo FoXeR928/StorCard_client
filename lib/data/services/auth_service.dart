@@ -16,7 +16,7 @@ class AuthService extends ChangeNotifier {
   static const _kIsAdmin = 'is_admin';
   static const _kLastServerUrl = 'last_server_url';
 
-  /// Обновляем access-токен заранее, до его истечения.
+  // Обновляем токен за 1 день до истечения
   static const _refreshLead = Duration(days: 1);
 
   String? _serverUrl;
@@ -27,12 +27,13 @@ class AuthService extends ChangeNotifier {
   bool _isAdmin = false;
   String? _lastServerUrl;
 
-  /// Событие для UI: сюда пишем сообщение при провале обновления токена.
+  /// Событие для UI: если токен протух и обновить не удалось.
   final sessionExpired = ValueNotifier<String?>(null);
 
   Timer? _refreshTimer;
   Future<bool>? _refreshInFlight;
 
+  // Геттеры...
   String? get serverUrl => _serverUrl;
   String? get token => _token;
   String? get username => _username;
@@ -42,10 +43,7 @@ class AuthService extends ChangeNotifier {
   bool get isAdmin => _isAdmin;
   bool get isReady => isLoggedIn || _offlineMode;
 
-  // ------------------------------------------------------------
-  // Восстановление состояния
-  // ------------------------------------------------------------
-
+  // --- Восстановление ---
   Future<void> restore() async {
     final p = await SharedPreferences.getInstance();
     _serverUrl = p.getString(_kServerUrl);
@@ -55,14 +53,12 @@ class AuthService extends ChangeNotifier {
     _offlineMode = p.getBool(_kOffline) ?? false;
     _isAdmin = p.getBool(_kIsAdmin) ?? false;
     _lastServerUrl = p.getString(_kLastServerUrl);
+
     notifyListeners();
     if (isLoggedIn) _scheduleRefresh();
   }
 
-  // ------------------------------------------------------------
-  // Логин
-  // ------------------------------------------------------------
-
+  // --- Логин ---
   Future<AuthResult> login({
     required String serverUrl,
     required String username,
@@ -86,10 +82,11 @@ class AuthService extends ChangeNotifier {
     );
 
     try {
+      // ФИКС: Используем path с параметром remember_me
       final path = rememberMe ? '/auth/login?remember_me=true' : '/auth/login';
 
       final res = await dio.post(
-        '/auth/login',
+        path,
         data: {
           'username': username,
           'password': password,
@@ -108,7 +105,7 @@ class AuthService extends ChangeNotifier {
       if (refresh != null) {
         await p.setString(_kRefresh, refresh);
       } else {
-        await p.remove(_kRefresh);   // без галочки refresh не нужен
+        await p.remove(_kRefresh); // Без галочки refresh не нужен
       }
       await p.setString(_kUsername, username);
       await p.setBool(_kOffline, false);
@@ -133,10 +130,7 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // ------------------------------------------------------------
-  // Refresh
-  // ------------------------------------------------------------
-
+  // --- Refresh ---
   Future<bool> refreshAccessToken() {
     final existing = _refreshInFlight;
     if (existing != null) return existing;
@@ -164,6 +158,7 @@ class AuthService extends ChangeNotifier {
         '/auth/refresh',
         data: {'refresh_token': refresh},
       );
+
       final newAccess = res.data['access_token'] as String?;
       final newRefresh = res.data['refresh_token'] as String?;
       if (newAccess == null) return false;
@@ -182,11 +177,7 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // ------------------------------------------------------------
-  // Фоновое обновление токена
-  // ------------------------------------------------------------
-
-  /// Парсит exp из JWT (payload — без проверки подписи).
+  // --- Фоновое обновление ---
   DateTime? _parseTokenExp(String token) {
     try {
       final parts = token.split('.');
@@ -203,7 +194,6 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  /// Ставит таймер: обновить access-токен за `_refreshLead` до истечения.
   void _scheduleRefresh() {
     _refreshTimer?.cancel();
     _refreshTimer = null;
@@ -218,24 +208,17 @@ class AuthService extends ChangeNotifier {
     final delay = remaining - _refreshLead;
 
     if (delay.isNegative) {
-      // Уже скоро истечёт — обновляем сразу.
       _runBackgroundRefresh();
       return;
     }
-
     _refreshTimer = Timer(delay, _runBackgroundRefresh);
   }
 
   Future<void> _runBackgroundRefresh() async {
-    final ok = await refreshAccessToken();
-    // При неудаче ничего не делаем: следующий 401 от ApiClient решит судьбу сессии.
-    if (!ok) return;
+    await refreshAccessToken();
   }
 
-  // ------------------------------------------------------------
-  // Прочее
-  // ------------------------------------------------------------
-
+  // --- Утилиты ---
   Future<void> setAdmin(bool value) async {
     if (_isAdmin == value) return;
     _isAdmin = value;
@@ -247,14 +230,8 @@ class AuthService extends ChangeNotifier {
   Future<void> handleUnauthorized({String? reason}) async {
     _refreshTimer?.cancel();
     _refreshTimer = null;
-
     final p = await SharedPreferences.getInstance();
-    await p.remove(_kServerUrl);
-    await p.remove(_kToken);
-    await p.remove(_kRefresh);
-    await p.remove(_kUsername);
-    await p.setBool(_kOffline, true);
-    await p.setBool(_kIsAdmin, false);
+    await p.clear(); // Или удалить только ключи авторизации
 
     _serverUrl = null;
     _token = null;
@@ -263,8 +240,7 @@ class AuthService extends ChangeNotifier {
     _offlineMode = true;
     _isAdmin = false;
 
-    sessionExpired.value =
-        reason ?? 'Сессия истекла. Войдите в аккаунт заново.';
+    sessionExpired.value = reason ?? 'Сессия истекла. Войдите снова.';
     notifyListeners();
   }
 
@@ -293,9 +269,7 @@ class AuthService extends ChangeNotifier {
           '/auth/logout',
           options: Options(headers: {'Authorization': 'Bearer $token'}),
         );
-      } catch (_) {
-        // Игнорируем — logout локально всё равно выполнится.
-      }
+      } catch (_) {}
     }
 
     _refreshTimer?.cancel();

@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../data/models/server_admin_card.dart';
 import '../../data/remote/api_client.dart';
 import '../../data/services/admin_service.dart';
-import '../widgets/barcode_fullscreen.dart';
+import '../widgets/fullscreen_barcode.dart';
 
 class AdminAllCardsScreen extends StatefulWidget {
   const AdminAllCardsScreen({super.key});
@@ -174,7 +174,7 @@ class _CardTile extends StatelessWidget {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (_) => BarcodeFullScreen(
+      builder: (_) => FullscreenBarcode(
         name: card.name,
         barcode: card.barcode,
         codeType: 'code128',

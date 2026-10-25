@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'core/theme/app_theme.dart';
 import 'data/services/app_info_service.dart';
-import 'views/auth_gate.dart';
+import 'views/auth/auth_gate.dart';
 
 class DiscountCardsApp extends StatelessWidget {
   const DiscountCardsApp({super.key});

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-import '../core/utils/barcode_utils.dart';
-import '../data/models/scan_result.dart';
+import '../../core/utils/barcode_utils.dart';
+import '../../data/models/scan_result.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});

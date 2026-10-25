@@ -4,14 +4,26 @@ import 'package:flutter/foundation.dart';
 import '../models/server_admin_card.dart';
 import '../models/server_user.dart';
 import '../remote/admin_api.dart';
+import '../remote/public_api.dart';
+import '../remote/user_api.dart';
 import 'auth_service.dart';
 
 class AdminService extends ChangeNotifier {
-  AdminService({required this._api, required AuthService auth}) : _auth = auth {
+  AdminService({
+    required AdminApi adminApi,
+    required UserApi userApi,
+    required PublicApi publicApi,
+    required AuthService auth,
+  }) : _adminApi = adminApi,
+       _userApi = userApi,
+       _publicApi = publicApi,
+       _auth = auth {
     _auth.addListener(_onAuthChanged);
   }
 
-  final AdminApi _api;
+  final AdminApi _adminApi;
+  final UserApi _userApi;
+  final PublicApi _publicApi;
   final AuthService _auth;
 
   List<ServerUser> _users = [];
@@ -38,6 +50,7 @@ class AdminService extends ChangeNotifier {
   bool _roleChecked = false;
   bool get roleChecked => _roleChecked;
 
+  /// Проверяет, является ли текущий пользователь админом (пробует запросить список юзеров).
   Future<void> checkRole() async {
     if (!_auth.isLoggedIn) {
       _roleChecked = false;
@@ -45,7 +58,7 @@ class AdminService extends ChangeNotifier {
       return;
     }
     try {
-      await _api.getUsers();
+      await _adminApi.getUsers();
       await _auth.setAdmin(true);
     } on DioException catch (e) {
       debugPrint('checkRole: status=${e.response?.statusCode}');
@@ -67,19 +80,35 @@ class AdminService extends ChangeNotifier {
     }
   }
 
-  // ---- Пользователи ----
+  // --- Пользователи ---
 
+  /// Загружает ПОЛНЫЙ список пользователей (только для админа).
   Future<void> loadUsers() async {
     if (!_auth.isAdmin) return;
     _loadingUsers = true;
     _lastError = null;
     notifyListeners();
     try {
-      _users = await _api.getUsers();
+      _users = await _adminApi.getUsers();
     } on DioException catch (e) {
       _lastError = _humanError(e);
     } catch (e) {
       _lastError = 'Ошибка: $e';
+    } finally {
+      _loadingUsers = false;
+      notifyListeners();
+    }
+  }
+
+  /// Загружает краткий справочник (логин и имя) для автодополнения при шеринге.
+  Future<void> loadDirectory() async {
+    if (!_auth.isLoggedIn) return;
+    _loadingUsers = true;
+    notifyListeners();
+    try {
+      _users = await _userApi.getDirectory();
+    } catch (_) {
+      // Тихо игнорируем
     } finally {
       _loadingUsers = false;
       notifyListeners();
@@ -93,20 +122,16 @@ class AdminService extends ChangeNotifier {
     bool isAdmin = false,
   }) async {
     try {
-      await _api.registerUser(
+      await _adminApi.registerUser(
         login: login,
         userName: userName,
         password: password,
       );
-      if (isAdmin) await _api.setUserRole(login: login, isAdmin: true);
+      if (isAdmin) await _adminApi.setUserRole(login: login, isAdmin: true);
       await loadUsers();
       return true;
     } on DioException catch (e) {
       _lastError = _humanError(e);
-      notifyListeners();
-      return false;
-    } catch (e) {
-      _lastError = '$e';
       notifyListeners();
       return false;
     }
@@ -114,7 +139,7 @@ class AdminService extends ChangeNotifier {
 
   Future<bool> setRole(String login, bool isAdmin) async {
     try {
-      await _api.setUserRole(login: login, isAdmin: isAdmin);
+      await _adminApi.setUserRole(login: login, isAdmin: isAdmin);
       await loadUsers();
       return true;
     } on DioException catch (e) {
@@ -129,7 +154,7 @@ class AdminService extends ChangeNotifier {
     required String password,
   }) async {
     try {
-      await _api.updatePassword(login: login, password: password);
+      await _userApi.updatePassword(login: login, password: password);
       return true;
     } on DioException catch (e) {
       _lastError = _humanError(e);
@@ -140,7 +165,7 @@ class AdminService extends ChangeNotifier {
 
   Future<bool> deleteUser(String login) async {
     try {
-      await _api.deleteUser(login);
+      await _adminApi.deleteUser(login);
       await loadUsers();
       return true;
     } on DioException catch (e) {
@@ -150,7 +175,7 @@ class AdminService extends ChangeNotifier {
     }
   }
 
-  // ---- Все карты ----
+  // --- Все карты (Админ) ---
 
   Future<void> loadAllCards() async {
     if (!_auth.isAdmin) return;
@@ -158,7 +183,7 @@ class AdminService extends ChangeNotifier {
     _lastError = null;
     notifyListeners();
     try {
-      _allCards = await _api.getAllCards();
+      _allCards = await _adminApi.getAllCards();
     } on DioException catch (e) {
       _lastError = _humanError(e);
     } catch (e) {
@@ -174,7 +199,7 @@ class AdminService extends ChangeNotifier {
     _lastError = null;
     notifyListeners();
     try {
-      _serverStatus = await _api.checkStatus() ?? 'OK';
+      _serverStatus = await _publicApi.checkStatus() ?? 'OK';
     } on DioException catch (e) {
       _serverStatus = null;
       _lastError = _humanError(e);
@@ -184,6 +209,45 @@ class AdminService extends ChangeNotifier {
     } finally {
       _checkingServer = false;
       notifyListeners();
+    }
+  }
+
+  /// Собирает данные для миграции (экспорт всех юзеров с хешами и карт).
+  Future<Map<String, dynamic>?> prepareMigrationData() async {
+    if (!_auth.isAdmin) return null;
+    try {
+      _loadingUsers = true;
+      _loadingCards = true;
+      notifyListeners();
+
+      final usersRaw = await _adminApi.getUsersForMigration();
+      final cards = await _adminApi.getAllCards();
+
+      _loadingUsers = false;
+      _loadingCards = false;
+      notifyListeners();
+
+      return {
+        'version': 2,
+        'exported_at': DateTime.now().toIso8601String(),
+        'users': usersRaw,
+        'cards': cards
+            .map(
+              (c) => {
+                'name': c.name,
+                'barcode': c.barcode,
+                'about': c.about,
+                'owner_login': c.ownerLogin,
+              },
+            )
+            .toList(),
+      };
+    } catch (e) {
+      _lastError = e.toString();
+      _loadingUsers = false;
+      _loadingCards = false;
+      notifyListeners();
+      return null;
     }
   }
 
