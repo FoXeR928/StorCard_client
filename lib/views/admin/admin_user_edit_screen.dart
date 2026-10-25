@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/models/server_user.dart';
@@ -100,6 +101,13 @@ class _AdminUserEditScreenState extends State<AdminUserEditScreen> {
             trailing: const Icon(Icons.chevron_right),
             onTap: _busy ? null : _changePassword,
           ),
+          ListTile(
+            leading: const Icon(Icons.auto_awesome),
+            title: const Text('Сгенерировать случайный пароль'),
+            subtitle: const Text('Надежный пароль из 32 символов'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _busy ? null : _generateRandomPassword,
+          ),
           const SizedBox(height: 24),
           if (!_isMe)
             Padding(
@@ -138,6 +146,69 @@ class _AdminUserEditScreenState extends State<AdminUserEditScreen> {
         SnackBar(content: Text('Ошибка: ${admin.lastError}')),
       );
     }
+  }
+
+  Future<void> _generateRandomPassword() async {
+    setState(() => _busy = true);
+    final admin = context.read<AdminService>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    final newPass = await admin.resetPasswordToRandom(widget.user.login);
+    if (!mounted) return;
+    setState(() => _busy = false);
+
+    if (newPass == null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Ошибка: ${admin.lastError ?? "неизвестно"}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    // Показываем диалог с новым паролем
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Новый пароль'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Пользователь: ${widget.user.login}'),
+            const SizedBox(height: 8),
+            SelectableText(
+              newPass,
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Обязательно сохраните его. Вы больше не сможете его увидеть.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: newPass));
+              Navigator.pop(context);
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Пароль скопирован')),
+              );
+            },
+            child: const Text('Скопировать и закрыть'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _changePassword() async {

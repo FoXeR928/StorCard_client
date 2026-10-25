@@ -149,6 +149,16 @@ class AdminService extends ChangeNotifier {
     }
   }
 
+  Future<String?> resetPasswordToRandom(String login) async {
+    try {
+      return await _userApi.resetPasswordToRandom(login);
+    } on DioException catch (e) {
+      _lastError = _humanError(e);
+      notifyListeners();
+      return null;
+    }
+  }
+
   Future<bool> changePassword({
     required String login,
     required String password,

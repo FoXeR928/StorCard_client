@@ -14,6 +14,17 @@ class UserApi {
         .toList();
   }
 
+  Future<String?> resetPasswordToRandom(String login) async {
+    final res = await _apiClient.client.post(
+      '/users/reset-password',
+      data: {'login': login},
+    );
+    if (res.data is Map && res.data['password'] is String) {
+      return res.data['password'] as String;
+    }
+    return null;
+  }
+
   /// Смена пароля. Пользователь может менять свой, админ — любой.
   Future<void> updatePassword({
     required String login,

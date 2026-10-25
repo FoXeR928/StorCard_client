@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/utils/dialogs.dart';
@@ -31,9 +32,76 @@ class SettingsAccountSection extends StatelessWidget {
       children: [
         _UserTile(auth: auth),
         _ChangePasswordTile(auth: auth),
+        ListTile(
+          leading: const Icon(Icons.auto_awesome),
+          title: const Text('Сгенерировать случайный пароль'),
+          subtitle: const Text('Надежный пароль из 32 символов'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _generateRandomPassword(context),
+        ),
         _ChangeServerTile(auth: auth),
         const _RecentRecipientsTile(),
       ],
+    );
+  }
+
+  // 👇 ДОБАВЛЕННЫЙ МЕТОД
+  Future<void> _generateRandomPassword(BuildContext context) async {
+    final admin = context.read<AdminService>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    final newPass = await admin.resetPasswordToRandom(auth.username!);
+    if (!context.mounted) return;
+
+    if (newPass == null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Ошибка: ${admin.lastError ?? "неизвестно"}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Новый пароль'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Пользователь: ${auth.username}'),
+            const SizedBox(height: 8),
+            SelectableText(
+              newPass,
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Обязательно сохраните его. Вы больше не сможете его увидеть.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: newPass));
+              Navigator.pop(context);
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Пароль скопирован')),
+              );
+            },
+            child: const Text('Скопировать и закрыть'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -70,7 +138,7 @@ class _UserTile extends StatelessWidget {
   }
 }
 
-// ---------- Смена пароля ----------
+// ---------- Смена пароля (вручную) ----------
 
 class _ChangePasswordTile extends StatelessWidget {
   const _ChangePasswordTile({required this.auth});
