@@ -37,9 +37,6 @@ android {
             // чтобы не генерировать keystore. 
             // Для публикации в Play Market нужен свой релизный ключ.
             signingConfig = signingConfigs.getByName("debug")
-            
-            // <-- ВКЛЮЧАЕМ ОПТИМИЗАЦИЮ РАЗМЕРА
-            isMinifyEnabled = true
         }
     }
 }
